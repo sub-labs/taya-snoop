@@ -1,11 +1,6 @@
-use alloy::primitives::map::HashMap;
-use eth_snoop::{
-    configs::Config,
-    db::{models::token::DatabaseToken, Database, StoreData},
-    rpc::Rpc,
-};
 use log::*;
 use simple_logger::SimpleLogger;
+use taya_snoop::{configs::Config, db::Database, rpc::Rpc};
 
 #[tokio::main()]
 async fn main() {
@@ -32,8 +27,6 @@ async fn main() {
 }
 
 async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
-    let mut tokens: HashMap<String, DatabaseToken> = HashMap::default();
-
     let mut last_synced_block = db.get_last_block_indexed();
 
     if last_synced_block < config.factory.start_block {
@@ -65,36 +58,6 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
             "Getting logs between blocks {} and {}",
             first_block, last_block
         );
-
-        let mut db_tokens: Vec<DatabaseToken> = vec![];
-
-        if !logs.is_empty() {
-            // Fetch the data of the pair tokens
-            for pair in events.clone().into_iter() {
-                if !tokens.contains_key(&pair.token0) {
-                    let token_data =
-                        rpc.get_token_information(pair.token0).await;
-
-                    db_tokens.push(token_data.clone());
-
-                    tokens.insert(token_data.address.clone(), token_data);
-                }
-
-                if !tokens.contains_key(&pair.token1) {
-                    let token_data =
-                        rpc.get_token_information(pair.token1).await;
-
-                    db_tokens.push(token_data.clone());
-
-                    tokens.insert(token_data.address.clone(), token_data);
-                }
-            }
-
-            let store_data =
-                StoreData { logs, pairs: events, tokens: db_tokens };
-
-            db.store_data(store_data).await;
-        }
 
         db.update_last_block_indexed(last_block);
     }

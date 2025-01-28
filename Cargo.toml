@@ -1,10 +1,10 @@
 [package]
-name = "eth-snoop"
+name = "taya-snoop"
 version = "1.0.0"
 license = "MIT"
 edition = "2021"
-repository = "https://github.com/eabz/eth-snoop"
-description = "ETH logs and event indexer"
+repository = "https://github.com/sub-labs/taya-snoop"
+description = "Taya logs and event indexer"
 
 [dependencies]
 alloy = { version = "0.9", features = ["full"] }
