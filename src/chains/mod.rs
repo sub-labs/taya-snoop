@@ -6,9 +6,9 @@ pub struct Chain {
     pub name: &'static str,
 }
 
-pub const MAINNET: Chain = Chain { id: 1, name: "mainnet" };
+pub const DEVNET: Chain = Chain { id: 20143, name: "devnet" };
 
-pub static CHAINS: [Chain; 1] = [MAINNET];
+pub static CHAINS: [Chain; 1] = [DEVNET];
 
 pub fn get_chains() -> HashMap<String, Chain> {
     let mut chains: HashMap<String, Chain> = HashMap::new();

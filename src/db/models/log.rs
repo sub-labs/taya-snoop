@@ -1,7 +1,4 @@
-use alloy::{
-    primitives::{Address, BlockHash},
-    rpc::types::Log,
-};
+use alloy::rpc::types::Log;
 use diesel::prelude::*;
 use field_count::FieldCount;
 
@@ -15,7 +12,6 @@ pub struct DatabaseLog {
     pub block_hash: String,
     pub chain: i64,
     pub data: String,
-    pub from_address: String,
     pub log_index: i64,
     pub removed: bool,
     pub timestamp: i64,
@@ -28,14 +24,7 @@ pub struct DatabaseLog {
 }
 
 impl DatabaseLog {
-    pub fn from_rpc(
-        log: &Log,
-        chain: i64,
-        timestamp: i64,
-        block_number: i64,
-        block_hash: BlockHash,
-        from_address: Address,
-    ) -> Self {
+    pub fn from_rpc(log: &Log, chain: i64) -> Self {
         let topic0 = if log.topic0().is_none() {
             String::from("0x")
         } else {
@@ -68,14 +57,13 @@ impl DatabaseLog {
 
         Self {
             address: log.address().to_string(),
-            block_hash: block_hash.to_string(),
-            block_number: block_number.to_owned(),
+            block_hash: log.block_hash.unwrap().to_string(),
+            block_number: log.block_number.unwrap() as i64,
             chain,
             data: log.data().data.to_string(),
-            from_address: from_address.to_string(),
             log_index: log.log_index.unwrap() as i64,
             removed: log.removed,
-            timestamp,
+            timestamp: log.block_timestamp.unwrap() as i64,
             topic0,
             topic1,
             topic2,

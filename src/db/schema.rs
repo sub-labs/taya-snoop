@@ -7,7 +7,6 @@ diesel::table! {
         block_hash -> Text,
         chain -> Int8,
         data -> Text,
-        from_address -> Text,
         log_index -> Int8,
         removed -> Bool,
         timestamp -> Int8,
@@ -19,3 +18,15 @@ diesel::table! {
         transaction_log_index -> Nullable<Int8>,
     }
 }
+
+diesel::table! {
+    sync_state (id) {
+        id -> Text,
+        last_block_number -> Int8,
+    }
+}
+
+diesel::allow_tables_to_appear_in_same_query!(
+    logs,
+    sync_state,
+);
