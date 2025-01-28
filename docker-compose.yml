@@ -1,0 +1,33 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=indexer
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=indexer
+      - POSTGRES_INITDB_ARGS=-E UTF8 --locale=C
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U indexer"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    restart: always
+    env_file: "./.env"
+
+  indexer:
+    image: snoop
+    container_name: indexer
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      snoop
+      --database "postgres://indexer:${DB_PASSWORD}@postgres/indexer"
+      --rpc ${RPC_ENDPOINT}
+      --chain ${CHAIN-mainnet}
+      --batch-size ${BATCH_SIZE-50}
+    restart: always
+    env_file: "./.env"

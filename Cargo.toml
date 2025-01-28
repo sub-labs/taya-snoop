@@ -1,0 +1,26 @@
+[package]
+name = "eth-snoop"
+version = "1.0.0"
+license = "MIT"
+edition = "2021"
+repository = "https://github.com/eabz/eth-snoop"
+description = "ETH logs and event indexer"
+
+[dependencies]
+alloy = { version = "0.9", features = ["full"] }
+clap = { version = "4", features = ["derive"] }
+diesel = { version = "2", features = ["postgres", "serde_json", "numeric"] }
+diesel_migrations = { version = "2", features = ["postgres"] }
+field_count = "0.1"
+futures = "0.3"
+log = "0.4"
+tokio = { version = "1", features = ["full"] }
+
+[dependencies.simple_logger]
+version = "5"
+default-features = false
+features = ["colors"]
+
+[[bin]]
+path = "bin/snoop.rs"
+name = "snoop"
