@@ -55,6 +55,11 @@ impl DatabaseLog {
             .transaction_index
             .map(|transaction_index| transaction_index as i64);
 
+        let timestamp = match log.block_timestamp {
+            Some(timestamp) => timestamp as i64,
+            None => 0,
+        };
+
         Self {
             address: log.address().to_string(),
             block_hash: log.block_hash.unwrap().to_string(),
@@ -63,7 +68,7 @@ impl DatabaseLog {
             data: log.data().data.to_string(),
             log_index: log.log_index.unwrap() as i64,
             removed: log.removed,
-            timestamp: log.block_timestamp.unwrap() as i64,
+            timestamp,
             topic0,
             topic1,
             topic2,

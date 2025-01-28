@@ -20,13 +20,30 @@ diesel::table! {
 }
 
 diesel::table! {
+    pairs (pair) {
+        pair -> Text,
+        token0 -> Text,
+        token1 -> Text,
+        index -> Int8,
+    }
+}
+
+diesel::table! {
     sync_state (id) {
         id -> Text,
         last_block_number -> Int8,
     }
 }
 
+diesel::table! {
+    tokens (address) {
+        address -> Text,
+        name -> Text,
+        symbol -> Text,
+        decimals -> Int8,
+    }
+}
+
 diesel::allow_tables_to_appear_in_same_query!(
-    logs,
-    sync_state,
+    logs, pairs, sync_state, tokens,
 );

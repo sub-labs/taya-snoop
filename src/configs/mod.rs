@@ -47,12 +47,9 @@ pub struct Subcontracts {
 }
 
 #[derive(Debug, Clone)]
-pub struct ObserveContract {
+pub struct Factory {
     pub address: Address,
-    pub events: Vec<Event>,
-    pub is_factory: bool,
     pub start_block: i64,
-    pub subcontracts: Option<Subcontracts>,
 }
 
 #[derive(Debug, Clone)]
@@ -62,7 +59,7 @@ pub struct Config {
     pub db_url: String,
     pub debug: bool,
     pub rpc: String,
-    pub contract: ObserveContract,
+    pub factory: Factory,
 }
 
 impl Default for Config {
@@ -83,43 +80,12 @@ impl Config {
             db_url: args.database,
             debug: args.debug,
             rpc: args.rpc,
-            contract: ObserveContract {
-                // [Custom setup]: The address of the contract that emits events.
+            factory: Factory {
                 address: Address::from_str(
-                    "0xcb0cb476fd34a5498db3deee06d3b7190ad53d94",
+                    "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
                 )
                 .unwrap(),
-                // [Custom setup]: The list of events to index from the contract.
-                events: vec![Event::parse("PairCreated(indexed address,indexed address,address,uint256)").unwrap()],
-                // [Custom setup]: Indicates whether the contract is a factory that generates subcontracts.
-                is_factory: true,
-                // [Custom setup]: The block number from which to start syncing. Typically, this is the block where the contract was deployed.
-                start_block: 1522653,
-                // [Custom setup]: If the contract is a factory, specifies the events to listen for in the generated subcontracts.
-                subcontracts: Some(Subcontracts {
-                    events: vec![
-                        Event::parse(
-                            "Mint(indexed address,uint256,uint256)",
-                        )
-                        .unwrap(),
-                        Event::parse(
-                            "Burn(indexed address,uint256,uint256,indexed address)",
-                        )
-                        .unwrap(),
-                        Event::parse(
-                            "Swap(indexed address,uint256,uint256,uint256,uint256,indexed address)",
-                        )
-                        .unwrap(),
-                        Event::parse(
-                            "Transfer(indexed address,indexed address,uint256)",
-                        )
-                        .unwrap(),
-                        Event::parse(
-                            "Sync(uint112,uint112)",
-                        )
-                        .unwrap(),
-                    ],
-                }),
+                start_block: 10000835,
             },
         }
     }

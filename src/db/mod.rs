@@ -14,8 +14,14 @@ use diesel_migrations::{
 use field_count::FieldCount;
 use futures::future::join_all;
 use log::*;
-use models::log::DatabaseLog;
-use schema::sync_state::{self, id, last_block_number};
+use models::{
+    events::DatabasePairCreated, log::DatabaseLog, tokens::DatabaseToken,
+};
+use schema::{
+    pairs::{self},
+    sync_state::{self, id, last_block_number},
+    tokens::{self},
+};
 use std::cmp::min;
 
 pub const MAX_PARAM_SIZE: u16 = u16::MAX;
@@ -41,6 +47,8 @@ impl DatabaseTables {
 
 pub struct StoreData {
     pub logs: Vec<DatabaseLog>,
+    pub pairs: Vec<DatabasePairCreated>,
+    pub tokens: Vec<DatabaseToken>,
 }
 
 #[derive(Clone)]
@@ -105,6 +113,36 @@ impl Database {
         }
     }
 
+    async fn store_tokens(&self, tokens: &[DatabaseToken]) {
+        let mut connection = self.get_connection();
+
+        let chunks =
+            get_chunks(tokens.len(), DatabaseToken::field_count());
+
+        for (start, end) in chunks {
+            diesel::insert_into(tokens::dsl::tokens)
+                .values(&tokens[start..end])
+                .on_conflict_do_nothing()
+                .execute(&mut connection)
+                .expect("unable to store tokens into database");
+        }
+    }
+
+    async fn store_pairs_created(&self, pairs: &[DatabasePairCreated]) {
+        let mut connection = self.get_connection();
+
+        let chunks =
+            get_chunks(pairs.len(), DatabasePairCreated::field_count());
+
+        for (start, end) in chunks {
+            diesel::insert_into(pairs::dsl::pairs)
+                .values(&pairs[start..end])
+                .on_conflict_do_nothing()
+                .execute(&mut connection)
+                .expect("unable to store pairs ceated into database");
+        }
+    }
+
     pub async fn store_data(&self, data: StoreData) {
         let mut stores: Vec<tokio::task::JoinHandle<()>> = vec![];
 
@@ -120,6 +158,30 @@ impl Database {
             stores.push(work);
         }
 
+        if !data.pairs.is_empty() {
+            let work = tokio::spawn({
+                let pairs: Vec<DatabasePairCreated> = data.pairs.clone();
+
+                let db = self.clone();
+
+                async move { db.store_pairs_created(&pairs).await }
+            });
+
+            stores.push(work);
+        }
+
+        if !data.tokens.is_empty() {
+            let work = tokio::spawn({
+                let tokens: Vec<DatabaseToken> = data.tokens.clone();
+
+                let db = self.clone();
+
+                async move { db.store_tokens(&tokens).await }
+            });
+
+            stores.push(work);
+        }
+
         let res = join_all(stores).await;
 
         let errored: Vec<_> =
@@ -129,7 +191,12 @@ impl Database {
             panic!("failed to store all chain primitive elements")
         }
 
-        info!("Inserted: logs ({}).", data.logs.len());
+        info!(
+            "Inserted: logs ({}) pairs created ({}) tokens ({}).",
+            data.logs.len(),
+            data.pairs.len(),
+            data.tokens.len()
+        );
     }
 }
 

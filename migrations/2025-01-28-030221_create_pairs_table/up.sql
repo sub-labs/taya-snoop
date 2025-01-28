@@ -1,0 +1,6 @@
+CREATE TABLE pairs (
+  pair TEXT PRIMARY KEY NOT NULL,
+  token0 TEXT NOT NULL,
+  token1 TEXT NOT NULL,
+  index BIGINT NOT NULL
+);

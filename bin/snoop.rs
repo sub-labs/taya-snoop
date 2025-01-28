@@ -1,6 +1,7 @@
+use alloy::primitives::map::HashMap;
 use eth_snoop::{
     configs::Config,
-    db::{Database, StoreData},
+    db::{models::tokens::DatabaseToken, Database, StoreData},
     rpc::Rpc,
 };
 use log::*;
@@ -31,10 +32,12 @@ async fn main() {
 }
 
 async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
+    let mut tokens: HashMap<String, DatabaseToken> = HashMap::default();
+
     let mut last_synced_block = db.get_last_block_indexed();
 
-    if last_synced_block < config.contract.start_block {
-        last_synced_block = config.contract.start_block
+    if last_synced_block < config.factory.start_block {
+        last_synced_block = config.factory.start_block
     }
 
     let last_chain_block = rpc.get_last_block().await;
@@ -54,18 +57,41 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
         let first_block = block_chunk[0];
         let last_block = block_chunk[block_chunk.len() - 1];
 
-        let logs =
-            rpc.get_logs_batch(first_block, last_block, config).await;
+        let (logs, events) = rpc
+            .get_factory_logs_batch(first_block, last_block, config)
+            .await;
 
         info!(
             "Getting logs between blocks {} and {}",
             first_block, last_block
         );
 
-        if !logs.is_empty() {
-            // [Custom setup]: Here is the perfect place to run your logic and generate new models based on your events.
+        let mut db_tokens: Vec<DatabaseToken> = vec![];
 
-            let store_data = StoreData { logs };
+        if !logs.is_empty() {
+            // Fetch the data of the pair tokens
+            for pair in events.clone().into_iter() {
+                if !tokens.contains_key(&pair.token0) {
+                    let token_data =
+                        rpc.get_token_information(pair.token0).await;
+
+                    db_tokens.push(token_data.clone());
+
+                    tokens.insert(token_data.address.clone(), token_data);
+                }
+
+                if !tokens.contains_key(&pair.token1) {
+                    let token_data =
+                        rpc.get_token_information(pair.token1).await;
+
+                    db_tokens.push(token_data.clone());
+
+                    tokens.insert(token_data.address.clone(), token_data);
+                }
+            }
+
+            let store_data =
+                StoreData { logs, pairs: events, tokens: db_tokens };
 
             db.store_data(store_data).await;
         }
