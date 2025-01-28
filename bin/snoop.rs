@@ -27,13 +27,13 @@ async fn main() {
 }
 
 async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
-    let mut last_synced_block = db.get_last_block_indexed();
+    let mut last_synced_block = db.get_last_block_indexed().await;
 
     if last_synced_block < config.factory.start_block {
         last_synced_block = config.factory.start_block
     }
 
-    let last_chain_block = rpc.get_last_block().await;
+    let last_chain_block = rpc.get_last_block().await as i64;
 
     let sync_blocks: Vec<i64> =
         (last_synced_block + 1..=last_chain_block).collect();
@@ -51,7 +51,11 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
         let last_block = block_chunk[block_chunk.len() - 1];
 
         let (logs, events) = rpc
-            .get_factory_logs_batch(first_block, last_block, config)
+            .get_factory_logs_batch(
+                first_block as u64,
+                last_block as u64,
+                config,
+            )
             .await;
 
         info!(

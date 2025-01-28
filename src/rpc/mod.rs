@@ -42,22 +42,22 @@ impl Rpc {
         Self { chain: config.chain.clone(), client }
     }
 
-    pub async fn get_last_block(&self) -> i64 {
+    pub async fn get_last_block(&self) -> u64 {
         self.client
             .get_block_number()
             .await
-            .expect("unable to get last block from RPC") as i64
+            .expect("unable to get last block from RPC")
     }
 
     pub async fn get_factory_logs_batch(
         &self,
-        first_block: i64,
-        last_block: i64,
+        first_block: u64,
+        last_block: u64,
         config: &Config,
     ) -> (Vec<DatabaseLog>, Vec<DatabasePair>) {
         let filter = Filter::new()
-            .from_block(BlockNumberOrTag::Number(first_block as u64))
-            .to_block(BlockNumberOrTag::Number(last_block as u64))
+            .from_block(BlockNumberOrTag::Number(first_block))
+            .to_block(BlockNumberOrTag::Number(last_block))
             .address(config.factory.address);
 
         let logs = self
