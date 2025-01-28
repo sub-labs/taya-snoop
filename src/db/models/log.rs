@@ -1,30 +1,26 @@
 use alloy::rpc::types::Log;
-use diesel::prelude::*;
-use field_count::FieldCount;
+use serde::{Deserialize, Serialize};
 
-use crate::db::schema::logs;
-
-#[derive(Selectable, Queryable, Insertable, Debug, Clone, FieldCount)]
-#[diesel(table_name = logs)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseLog {
     pub address: String,
-    pub block_number: i64,
+    pub block_number: u64,
     pub block_hash: String,
-    pub chain: i64,
+    pub chain: u64,
     pub data: String,
-    pub log_index: i64,
+    pub log_index: u64,
     pub removed: bool,
-    pub timestamp: i64,
+    pub timestamp: u64,
     pub topic0: String,
     pub topic1: Option<String>,
     pub topic2: Option<String>,
     pub topic3: Option<String>,
     pub transaction_hash: String,
-    pub transaction_log_index: Option<i64>,
+    pub transaction_log_index: Option<u64>,
 }
 
 impl DatabaseLog {
-    pub fn from_rpc(log: &Log, chain: i64) -> Self {
+    pub fn from_rpc(log: &Log, chain: u64) -> Self {
         let topic0 = if log.topic0().is_none() {
             String::from("0x")
         } else {
@@ -53,20 +49,20 @@ impl DatabaseLog {
 
         let transaction_log_index = log
             .transaction_index
-            .map(|transaction_index| transaction_index as i64);
+            .map(|transaction_index| transaction_index);
 
         let timestamp = match log.block_timestamp {
-            Some(timestamp) => timestamp as i64,
+            Some(timestamp) => timestamp,
             None => 0,
         };
 
         Self {
             address: log.address().to_string(),
             block_hash: log.block_hash.unwrap().to_string(),
-            block_number: log.block_number.unwrap() as i64,
+            block_number: log.block_number.unwrap(),
             chain,
             data: log.data().data.to_string(),
-            log_index: log.log_index.unwrap() as i64,
+            log_index: log.log_index.unwrap(),
             removed: log.removed,
             timestamp,
             topic0,

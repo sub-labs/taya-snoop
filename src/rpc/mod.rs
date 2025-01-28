@@ -1,20 +1,14 @@
-use std::str::FromStr;
-
 use log::info;
 
 use crate::{
-    abi::erc20::ERC20,
     chains::Chain,
     configs::Config,
     db::models::{
-        events::{DatabasePairCreated, PairCreated},
-        log::DatabaseLog,
-        tokens::DatabaseToken,
+        factory::PairCreated, log::DatabaseLog, pair::DatabasePair,
     },
 };
 use alloy::{
     eips::BlockNumberOrTag,
-    primitives::Address,
     providers::{Provider, ProviderBuilder, RootProvider},
     rpc::types::Filter,
     sol_types::SolEvent,
@@ -38,7 +32,7 @@ impl Rpc {
 
         match client_id {
             Ok(value) => {
-                if value as i64 != config.chain.id {
+                if value != config.chain.id {
                     panic!("RPC chain id is invalid");
                 }
             }
@@ -60,7 +54,7 @@ impl Rpc {
         first_block: i64,
         last_block: i64,
         config: &Config,
-    ) -> (Vec<DatabaseLog>, Vec<DatabasePairCreated>) {
+    ) -> (Vec<DatabaseLog>, Vec<DatabasePair>) {
         let filter = Filter::new()
             .from_block(BlockNumberOrTag::Number(first_block as u64))
             .to_block(BlockNumberOrTag::Number(last_block as u64))
@@ -74,7 +68,7 @@ impl Rpc {
             .into_iter();
 
         let mut db_logs: Vec<DatabaseLog> = vec![];
-        let mut db_pairs_created: Vec<DatabasePairCreated> = vec![];
+        let mut db_pairs_created: Vec<DatabasePair> = vec![];
 
         for log in logs {
             let database_log =
@@ -83,41 +77,16 @@ impl Rpc {
             let event = PairCreated::decode_log(&log.inner, true).unwrap();
 
             db_logs.push(database_log);
-            db_pairs_created.push(DatabasePairCreated {
-                pair: event.pair.to_string(),
-                token0: event.token0.to_string(),
-                token1: event.token1.to_string(),
-                index: event._3.to_string().parse().unwrap(),
-            });
+
+            let pair = DatabasePair::new(
+                event.pair.to_string(),
+                event.token0.to_string(),
+                event.token1.to_string(),
+            );
+
+            db_pairs_created.push(pair);
         }
 
         (db_logs, db_pairs_created)
-    }
-
-    pub async fn get_token_information(
-        &self,
-        address: String,
-    ) -> DatabaseToken {
-        let token = ERC20::new(
-            Address::from_str(&address).unwrap(),
-            self.client.clone(),
-        );
-
-        let name = match token.name().call().await {
-            Ok(name) => name._0,
-            Err(_) => "UNKNOWN".to_string(),
-        };
-
-        let symbol = match token.symbol().call().await {
-            Ok(symbol) => symbol._0,
-            Err(_) => "UNKNOWN".to_string(),
-        };
-
-        let decimals = match token.decimals().call().await {
-            Ok(decimals) => decimals._0 as i64,
-            Err(_) => 0,
-        };
-
-        DatabaseToken { address, name, symbol, decimals }
     }
 }

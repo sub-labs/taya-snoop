@@ -1,7 +1,7 @@
 use alloy::primitives::map::HashMap;
 use eth_snoop::{
     configs::Config,
-    db::{models::tokens::DatabaseToken, Database, StoreData},
+    db::{models::token::DatabaseToken, Database, StoreData},
     rpc::Rpc,
 };
 use log::*;
