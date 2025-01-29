@@ -1,14 +1,22 @@
+use std::str::FromStr;
+
 use log::info;
 
 use crate::{
     chains::Chain,
     configs::Config,
     db::models::{
-        factory::PairCreated, log::DatabaseLog, pair::DatabasePair,
+        burn::DatabaseBurn,
+        factory::PairCreated,
+        log::DatabaseLog,
+        mint::DatabaseMint,
+        pair::{Burn, DatabasePair, Mint, Swap, Sync},
+        swap::DatabaseSwap,
     },
 };
 use alloy::{
     eips::BlockNumberOrTag,
+    primitives::{Address, Log},
     providers::{Provider, ProviderBuilder, RootProvider},
     rpc::types::Filter,
     sol_types::SolEvent,
@@ -58,7 +66,8 @@ impl Rpc {
         let filter = Filter::new()
             .from_block(BlockNumberOrTag::Number(first_block))
             .to_block(BlockNumberOrTag::Number(last_block))
-            .address(config.factory.address);
+            .address(config.factory.address)
+            .event_signature(PairCreated::SIGNATURE_HASH);
 
         let logs = self
             .client
@@ -78,15 +87,104 @@ impl Rpc {
 
             db_logs.push(database_log);
 
-            let pair = DatabasePair::new(
-                event.pair.to_string(),
-                event.token0.to_string(),
-                event.token1.to_string(),
-            );
+            let pair = DatabasePair::from_log(&log, event);
 
             db_pairs_created.push(pair);
         }
 
         (db_logs, db_pairs_created)
+    }
+
+    pub async fn get_pairs_logs_batch(
+        &self,
+        pairs: &[String],
+        first_block: u64,
+        last_block: u64,
+        chain: &Chain,
+    ) -> (
+        Vec<DatabaseLog>,
+        Vec<DatabaseMint>,
+        Vec<DatabaseBurn>,
+        Vec<DatabaseSwap>,
+        Vec<Log<Sync>>,
+    ) {
+        let address_pairs: Vec<Address> = pairs
+            .iter()
+            .map(|pair| Address::from_str(pair).unwrap())
+            .collect();
+
+        let filter = Filter::new()
+            .from_block(BlockNumberOrTag::Number(first_block))
+            .to_block(BlockNumberOrTag::Number(last_block))
+            .address(address_pairs)
+            .events(vec![
+                Mint::SIGNATURE_HASH,
+                Burn::SIGNATURE_HASH,
+                Swap::SIGNATURE_HASH,
+                Sync::SIGNATURE_HASH,
+            ]);
+
+        let logs = self
+            .client
+            .get_logs(&filter)
+            .await
+            .expect("unable to get logs from RPC")
+            .into_iter();
+
+        let mut db_logs: Vec<DatabaseLog> = vec![];
+        let mut db_mints: Vec<DatabaseMint> = vec![];
+        let mut db_burns: Vec<DatabaseBurn> = vec![];
+        let mut db_swaps: Vec<DatabaseSwap> = vec![];
+        let mut sync_events: Vec<Log<Sync>> = vec![];
+
+        for log in logs {
+            println!("{:?}", log);
+            match log.topic0() {
+                Some(topic_raw) => {
+                    let topic = topic_raw.to_string();
+
+                    if topic == Mint::SIGNATURE {
+                        let event: Log<Mint> =
+                            Mint::decode_log(&log.inner, true).unwrap();
+
+                        let db_mint = DatabaseMint::from_log(&log, event);
+
+                        db_mints.push(db_mint);
+                    }
+
+                    if topic == Burn::SIGNATURE {
+                        let event =
+                            Burn::decode_log(&log.inner, true).unwrap();
+
+                        let db_burn = DatabaseBurn::from_log(&log, event);
+
+                        db_burns.push(db_burn)
+                    }
+
+                    if topic == Swap::SIGNATURE {
+                        let event =
+                            Swap::decode_log(&log.inner, true).unwrap();
+
+                        let db_swap = DatabaseSwap::from_log(&log, event);
+
+                        db_swaps.push(db_swap)
+                    }
+
+                    if topic == Sync::SIGNATURE {
+                        let sync_event =
+                            Sync::decode_log(&log.inner, true).unwrap();
+
+                        sync_events.push(sync_event);
+                    }
+
+                    let db_log = DatabaseLog::from_rpc(&log, chain.id);
+
+                    db_logs.push(db_log)
+                }
+                None => continue,
+            }
+        }
+
+        (db_logs, db_mints, db_burns, db_swaps, sync_events)
     }
 }

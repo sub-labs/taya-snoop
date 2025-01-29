@@ -16,7 +16,7 @@ pub struct DatabaseLog {
     pub topic2: Option<String>,
     pub topic3: Option<String>,
     pub transaction_hash: String,
-    pub transaction_log_index: Option<u64>,
+    pub transaction_index: Option<u64>,
 }
 
 impl DatabaseLog {
@@ -47,15 +47,6 @@ impl DatabaseLog {
             Some(topics[3].to_string())
         };
 
-        let transaction_log_index = log
-            .transaction_index
-            .map(|transaction_index| transaction_index);
-
-        let timestamp = match log.block_timestamp {
-            Some(timestamp) => timestamp,
-            None => 0,
-        };
-
         Self {
             address: log.address().to_string(),
             block_hash: log.block_hash.unwrap().to_string(),
@@ -64,13 +55,13 @@ impl DatabaseLog {
             data: log.data().data.to_string(),
             log_index: log.log_index.unwrap(),
             removed: log.removed,
-            timestamp,
+            timestamp: log.block_timestamp.unwrap_or(0),
             topic0,
             topic1,
             topic2,
             topic3,
             transaction_hash: log.transaction_hash.unwrap().to_string(),
-            transaction_log_index,
+            transaction_index: log.transaction_index,
         }
     }
 }

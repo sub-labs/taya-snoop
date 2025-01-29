@@ -1,5 +1,10 @@
-use alloy::sol;
+use alloy::{
+    primitives::{Log, LogData},
+    sol,
+};
 use serde::{Deserialize, Serialize};
+
+use super::factory::PairCreated;
 
 sol! {
     event Mint(address indexed sender, uint amount0, uint amount1);
@@ -17,7 +22,7 @@ sol! {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabasePair {
-    pub address: String,
+    pub id: String,
     pub token0: String,
     pub token1: String,
     pub reserve0: f64,
@@ -33,23 +38,25 @@ pub struct DatabasePair {
     pub volume_usd: f64,
     pub untracked_volume_usd: f64,
     pub tx_count: u64,
-    pub created_at_timestamp: u64,
-    pub created_at_block_number: u64,
+    pub created_at_timestamp: Option<u64>,
+    pub created_at_block_number: Option<u64>,
     pub liquidity_provider_count: u64,
-
     // TODO: find a way to make the relationship
-    pub pair_hour_data: Vec<String>,
-    pub mints: Vec<String>,
-    pub burns: Vec<String>,
-    pub swaps: Vec<String>,
+    // pub pair_hour_data: Vec<String>,
+    // pub mints: Vec<String>,
+    // pub burns: Vec<String>,
+    // pub swaps: Vec<String>,
 }
 
 impl DatabasePair {
-    pub fn new(address: String, token0: String, token1: String) -> Self {
+    pub fn from_log(
+        log: &alloy::rpc::types::Log<LogData>,
+        event: Log<PairCreated>,
+    ) -> Self {
         Self {
-            address,
-            token0,
-            token1,
+            id: event.pair.to_string(),
+            token0: event.token0.to_string(),
+            token1: event.token1.to_string(),
             reserve0: 0.0,
             reserve1: 0.0,
             total_supply: 0.0,
@@ -63,13 +70,9 @@ impl DatabasePair {
             volume_usd: 0.0,
             untracked_volume_usd: 0.0,
             tx_count: 0,
-            created_at_timestamp: 0,
-            created_at_block_number: 0,
+            created_at_timestamp: log.block_timestamp,
+            created_at_block_number: log.block_number,
             liquidity_provider_count: 0,
-            pair_hour_data: vec![],
-            mints: vec![],
-            burns: vec![],
-            swaps: vec![],
         }
     }
 }
