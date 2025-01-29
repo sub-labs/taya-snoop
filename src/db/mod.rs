@@ -1,223 +1,186 @@
 pub mod models;
-pub mod schema;
 
-use self::schema::logs;
-use crate::chains::Chain;
-use core::panic;
-use diesel::{
-    Connection, ExpressionMethods, PgConnection, QueryDsl, QueryResult,
-    RunQueryDsl,
-};
-use diesel_migrations::{
-    embed_migrations, EmbeddedMigrations, MigrationHarness,
-};
-use field_count::FieldCount;
-use futures::future::join_all;
+use crate::{chains::Chain, configs::Config};
+
 use log::*;
-use models::{
-    events::DatabasePairCreated, log::DatabaseLog, tokens::DatabaseToken,
+use models::{factory::DatabaseFactory, sync_state::DatabaseSyncState};
+use mongodb::{
+    bson::doc,
+    options::{ClientOptions, ServerApi, ServerApiVersion},
+    Client,
 };
-use schema::{
-    pairs::{self},
-    sync_state::{self, id, last_block_number},
-    tokens::{self},
-};
-use std::cmp::min;
-
-pub const MAX_PARAM_SIZE: u16 = u16::MAX;
-
-pub const MIGRATIONS: EmbeddedMigrations =
-    embed_migrations!("migrations/");
-
-pub enum DatabaseTables {
-    SyncState,
-    Events,
-    Logs,
-}
-
-impl DatabaseTables {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            DatabaseTables::SyncState => "sync_state",
-            DatabaseTables::Events => "events",
-            DatabaseTables::Logs => "logs",
-        }
-    }
-}
-
-pub struct StoreData {
-    pub logs: Vec<DatabaseLog>,
-    pub pairs: Vec<DatabasePairCreated>,
-    pub tokens: Vec<DatabaseToken>,
-}
+use serde::Serialize;
 
 #[derive(Clone)]
 pub struct Database {
     pub chain: Chain,
-    pub db_url: String,
+    pub db: mongodb::Database,
 }
+
+pub enum DatabaseKeys {
+    State,
+    Factory,
+    Logs,
+    Burns,
+    Mints,
+    Swaps,
+    Transactions,
+    Users,
+    Bundle,
+    Tokens,
+    Pairs,
+    DexDayData,
+    PairHourData,
+    PairDayData,
+    TokenDayData,
+}
+
+impl DatabaseKeys {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            DatabaseKeys::State => "sync_state",
+            DatabaseKeys::Factory => "taya_swap",
+            DatabaseKeys::Logs => "logs",
+            DatabaseKeys::Burns => "burns",
+            DatabaseKeys::Mints => "mints",
+            DatabaseKeys::Swaps => "swaps",
+            DatabaseKeys::Transactions => "transactions",
+            DatabaseKeys::Users => "users",
+            DatabaseKeys::Bundle => "bundle",
+            DatabaseKeys::Tokens => "tokens",
+            DatabaseKeys::Pairs => "pairs",
+            DatabaseKeys::DexDayData => "dex_day_data",
+            DatabaseKeys::PairHourData => "pair_hour_data",
+            DatabaseKeys::PairDayData => "pair_day_data",
+            DatabaseKeys::TokenDayData => "token_day_data",
+        }
+    }
+}
+
+static DATABASE: &str = "indexer";
 
 impl Database {
     pub async fn new(db_url: String, chain: Chain) -> Self {
         info!("Starting database service");
 
-        let mut db = PgConnection::establish(&db_url)
-            .expect("unable to connect to the database");
+        let mut client_options =
+            ClientOptions::parse(db_url).await.unwrap();
 
-        db.run_pending_migrations(MIGRATIONS).unwrap();
+        let server_api =
+            ServerApi::builder().version(ServerApiVersion::V1).build();
+        client_options.server_api = Some(server_api);
 
-        Self { chain, db_url }
+        let db = Client::with_options(client_options)
+            .unwrap()
+            .database(DATABASE);
+
+        Self { chain, db }
     }
 
-    pub fn get_connection(&self) -> PgConnection {
-        PgConnection::establish(&self.db_url)
-            .expect("unable to connect to the database")
-    }
+    pub async fn get_last_block_indexed(&self) -> i64 {
+        let sync_state_key = DatabaseKeys::State.as_str();
 
-    pub fn get_last_block_indexed(&self) -> i64 {
-        let mut connection = self.get_connection();
+        let sync_state = self
+            .db
+            .collection::<DatabaseSyncState>(sync_state_key)
+            .find_one(doc! { "id": { "$eq": sync_state_key}})
+            .await
+            .unwrap();
 
-        let number: QueryResult<i64> = sync_state::dsl::sync_state
-            .select(sync_state::dsl::last_block_number)
-            .filter(id.eq("sync_state"))
-            .first::<i64>(&mut connection);
+        match sync_state {
+            Some(sync_state) => sync_state.last_block_indexed,
+            None => {
+                let new_sync_state = DatabaseSyncState {
+                    id: sync_state_key.to_owned(),
+                    last_block_indexed: 0,
+                };
 
-        match number {
-            Ok(block) => block,
-            Err(_) => panic!("unable to get last synced block"),
+                self.db
+                    .collection::<DatabaseSyncState>(sync_state_key)
+                    .insert_one(new_sync_state)
+                    .await
+                    .unwrap();
+
+                0
+            }
         }
     }
 
-    pub fn update_last_block_indexed(&self, new_last_block_number: i64) {
-        let mut connection = self.get_connection();
+    pub async fn get_factory(&self, config: &Config) -> DatabaseFactory {
+        let factory_key = DatabaseKeys::Factory.as_str();
 
-        diesel::update(
-            sync_state::dsl::sync_state.filter(id.eq("sync_state")),
-        )
-        .set(last_block_number.eq(&new_last_block_number))
-        .execute(&mut connection)
-        .expect("unable to update sync state into database");
-    }
+        let factory = self
+            .db
+            .collection::<DatabaseFactory>(factory_key)
+            .find_one(doc! { "id": { "$eq": factory_key}})
+            .await
+            .unwrap();
 
-    async fn store_logs(&self, logs: &[DatabaseLog]) {
-        let mut connection = self.get_connection();
+        match factory {
+            Some(factory) => factory,
+            None => {
+                let new_factory = DatabaseFactory::new();
 
-        let chunks = get_chunks(logs.len(), DatabaseLog::field_count());
+                self.db
+                    .collection::<DatabaseFactory>(factory_key)
+                    .insert_one(&new_factory)
+                    .await
+                    .unwrap();
 
-        for (start, end) in chunks {
-            diesel::insert_into(logs::dsl::logs)
-                .values(&logs[start..end])
-                .on_conflict_do_nothing()
-                .execute(&mut connection)
-                .expect("unable to store logs into database");
+                new_factory
+            }
         }
     }
 
-    async fn store_tokens(&self, tokens: &[DatabaseToken]) {
-        let mut connection = self.get_connection();
+    pub async fn update_factory(&self, factory: &DatabaseFactory) {
+        let factory_key = DatabaseKeys::Factory.as_str();
 
-        let chunks =
-            get_chunks(tokens.len(), DatabaseToken::field_count());
+        let filter = doc! { "id": factory_key };
+        let update = doc! {
+        "$set": {
+            "pair_count": factory.pair_count,
+            "total_volume_usd": factory.total_volume_eth,
+            "total_volume_eth": factory.total_volume_eth,
+            "untracked_volume_usd": factory.untracked_volume_usd,
+            "total_liquidity_usd": factory.total_liquidity_usd,
+            "total_liquidity_eth": factory.total_liquidity_eth,
+            "tx_count": factory.tx_count,
+            "pairs": factory.pairs.clone()
+        }};
 
-        for (start, end) in chunks {
-            diesel::insert_into(tokens::dsl::tokens)
-                .values(&tokens[start..end])
-                .on_conflict_do_nothing()
-                .execute(&mut connection)
-                .expect("unable to store tokens into database");
-        }
+        self.db
+            .collection::<DatabaseFactory>(factory_key)
+            .update_one(filter, update)
+            .await
+            .unwrap();
     }
 
-    async fn store_pairs_created(&self, pairs: &[DatabasePairCreated]) {
-        let mut connection = self.get_connection();
+    pub async fn update_last_block_indexed(
+        &self,
+        new_last_block_number: i64,
+    ) {
+        let sync_state_key = DatabaseKeys::State.as_str();
 
-        let chunks =
-            get_chunks(pairs.len(), DatabasePairCreated::field_count());
+        let filter = doc! { "id": sync_state_key };
+        let update = doc! { "$set": doc! {"last_block_indexed": new_last_block_number} };
 
-        for (start, end) in chunks {
-            diesel::insert_into(pairs::dsl::pairs)
-                .values(&pairs[start..end])
-                .on_conflict_do_nothing()
-                .execute(&mut connection)
-                .expect("unable to store pairs ceated into database");
-        }
+        self.db
+            .collection::<DatabaseSyncState>(sync_state_key)
+            .update_one(filter, update)
+            .await
+            .unwrap();
     }
 
-    pub async fn store_data(&self, data: StoreData) {
-        let mut stores: Vec<tokio::task::JoinHandle<()>> = vec![];
-
-        if !data.logs.is_empty() {
-            let work = tokio::spawn({
-                let logs: Vec<DatabaseLog> = data.logs.clone();
-
-                let db = self.clone();
-
-                async move { db.store_logs(&logs).await }
-            });
-
-            stores.push(work);
+    pub async fn store<T>(&self, key: DatabaseKeys, data: &Vec<T>)
+    where
+        T: Serialize + Send + Sync + Unpin + 'static,
+    {
+        if !data.is_empty() {
+            self.db
+                .collection::<T>(key.as_str())
+                .insert_many(data)
+                .await
+                .unwrap();
         }
-
-        if !data.pairs.is_empty() {
-            let work = tokio::spawn({
-                let pairs: Vec<DatabasePairCreated> = data.pairs.clone();
-
-                let db = self.clone();
-
-                async move { db.store_pairs_created(&pairs).await }
-            });
-
-            stores.push(work);
-        }
-
-        if !data.tokens.is_empty() {
-            let work = tokio::spawn({
-                let tokens: Vec<DatabaseToken> = data.tokens.clone();
-
-                let db = self.clone();
-
-                async move { db.store_tokens(&tokens).await }
-            });
-
-            stores.push(work);
-        }
-
-        let res = join_all(stores).await;
-
-        let errored: Vec<_> =
-            res.iter().filter(|res| res.is_err()).collect();
-
-        if !errored.is_empty() {
-            panic!("failed to store all chain primitive elements")
-        }
-
-        info!(
-            "Inserted: logs ({}) pairs created ({}) tokens ({}).",
-            data.logs.len(),
-            data.pairs.len(),
-            data.tokens.len()
-        );
     }
-}
-
-/// Ref: https://github.com/aptos-labs/aptos-core/blob/main/crates/indexer/src/database.rs#L32
-/// Given diesel has a limit of how many parameters can be inserted in a single operation (u16::MAX)
-/// we may need to chunk an array of items based on how many columns are in the table.
-/// This function returns boundaries of chunks in the form of (start_index, end_index)
-pub fn get_chunks(
-    num_items_to_insert: usize,
-    column_count: usize,
-) -> Vec<(usize, usize)> {
-    let max_item_size = MAX_PARAM_SIZE as usize / column_count;
-    let mut chunk: (usize, usize) =
-        (0, min(num_items_to_insert, max_item_size));
-    let mut chunks = vec![chunk];
-    while chunk.1 != num_items_to_insert {
-        chunk = (
-            chunk.0 + max_item_size,
-            min(num_items_to_insert, chunk.1 + max_item_size),
-        );
-        chunks.push(chunk);
-    }
-    chunks
 }

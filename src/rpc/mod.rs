@@ -3,18 +3,20 @@ use std::str::FromStr;
 use log::info;
 
 use crate::{
-    abi::erc20::ERC20,
     chains::Chain,
     configs::Config,
     db::models::{
-        events::{DatabasePairCreated, PairCreated},
+        burn::DatabaseBurn,
+        factory::PairCreated,
         log::DatabaseLog,
-        tokens::DatabaseToken,
+        mint::DatabaseMint,
+        pair::{Burn, DatabasePair, Mint, Swap, Sync},
+        swap::DatabaseSwap,
     },
 };
 use alloy::{
     eips::BlockNumberOrTag,
-    primitives::Address,
+    primitives::{Address, Log},
     providers::{Provider, ProviderBuilder, RootProvider},
     rpc::types::Filter,
     sol_types::SolEvent,
@@ -38,7 +40,7 @@ impl Rpc {
 
         match client_id {
             Ok(value) => {
-                if value as i64 != config.chain.id {
+                if value != config.chain.id {
                     panic!("RPC chain id is invalid");
                 }
             }
@@ -48,23 +50,24 @@ impl Rpc {
         Self { chain: config.chain.clone(), client }
     }
 
-    pub async fn get_last_block(&self) -> i64 {
+    pub async fn get_last_block(&self) -> u64 {
         self.client
             .get_block_number()
             .await
-            .expect("unable to get last block from RPC") as i64
+            .expect("unable to get last block from RPC")
     }
 
     pub async fn get_factory_logs_batch(
         &self,
-        first_block: i64,
-        last_block: i64,
+        first_block: u64,
+        last_block: u64,
         config: &Config,
-    ) -> (Vec<DatabaseLog>, Vec<DatabasePairCreated>) {
+    ) -> (Vec<DatabaseLog>, Vec<DatabasePair>) {
         let filter = Filter::new()
-            .from_block(BlockNumberOrTag::Number(first_block as u64))
-            .to_block(BlockNumberOrTag::Number(last_block as u64))
-            .address(config.factory.address);
+            .from_block(BlockNumberOrTag::Number(first_block))
+            .to_block(BlockNumberOrTag::Number(last_block))
+            .address(config.factory.address)
+            .event_signature(PairCreated::SIGNATURE_HASH);
 
         let logs = self
             .client
@@ -74,7 +77,7 @@ impl Rpc {
             .into_iter();
 
         let mut db_logs: Vec<DatabaseLog> = vec![];
-        let mut db_pairs_created: Vec<DatabasePairCreated> = vec![];
+        let mut db_pairs_created: Vec<DatabasePair> = vec![];
 
         for log in logs {
             let database_log =
@@ -83,41 +86,105 @@ impl Rpc {
             let event = PairCreated::decode_log(&log.inner, true).unwrap();
 
             db_logs.push(database_log);
-            db_pairs_created.push(DatabasePairCreated {
-                pair: event.pair.to_string(),
-                token0: event.token0.to_string(),
-                token1: event.token1.to_string(),
-                index: event._3.to_string().parse().unwrap(),
-            });
+
+            let pair = DatabasePair::from_log(&log, event);
+
+            db_pairs_created.push(pair);
         }
 
         (db_logs, db_pairs_created)
     }
 
-    pub async fn get_token_information(
+    pub async fn get_pairs_logs_batch(
         &self,
-        address: String,
-    ) -> DatabaseToken {
-        let token = ERC20::new(
-            Address::from_str(&address).unwrap(),
-            self.client.clone(),
-        );
+        pairs: &[String],
+        first_block: u64,
+        last_block: u64,
+        chain: &Chain,
+    ) -> (
+        Vec<DatabaseLog>,
+        Vec<DatabaseMint>,
+        Vec<DatabaseBurn>,
+        Vec<DatabaseSwap>,
+        Vec<Log<Sync>>,
+    ) {
+        let address_pairs: Vec<Address> = pairs
+            .iter()
+            .map(|pair| Address::from_str(pair).unwrap())
+            .collect();
 
-        let name = match token.name().call().await {
-            Ok(name) => name._0,
-            Err(_) => "UNKNOWN".to_string(),
-        };
+        let filter = Filter::new()
+            .from_block(BlockNumberOrTag::Number(first_block))
+            .to_block(BlockNumberOrTag::Number(last_block))
+            .address(address_pairs)
+            .events(vec![
+                Mint::SIGNATURE_HASH,
+                Burn::SIGNATURE_HASH,
+                Swap::SIGNATURE_HASH,
+                Sync::SIGNATURE_HASH,
+            ]);
 
-        let symbol = match token.symbol().call().await {
-            Ok(symbol) => symbol._0,
-            Err(_) => "UNKNOWN".to_string(),
-        };
+        let logs = self
+            .client
+            .get_logs(&filter)
+            .await
+            .expect("unable to get logs from RPC")
+            .into_iter();
 
-        let decimals = match token.decimals().call().await {
-            Ok(decimals) => decimals._0 as i64,
-            Err(_) => 0,
-        };
+        let mut db_logs: Vec<DatabaseLog> = vec![];
+        let mut db_mints: Vec<DatabaseMint> = vec![];
+        let mut db_burns: Vec<DatabaseBurn> = vec![];
+        let mut db_swaps: Vec<DatabaseSwap> = vec![];
+        let mut sync_events: Vec<Log<Sync>> = vec![];
 
-        DatabaseToken { address, name, symbol, decimals }
+        for log in logs {
+            println!("{:?}", log);
+            match log.topic0() {
+                Some(topic_raw) => {
+                    let topic = topic_raw.to_string();
+
+                    if topic == Mint::SIGNATURE {
+                        let event: Log<Mint> =
+                            Mint::decode_log(&log.inner, true).unwrap();
+
+                        let db_mint = DatabaseMint::from_log(&log, event);
+
+                        db_mints.push(db_mint);
+                    }
+
+                    if topic == Burn::SIGNATURE {
+                        let event =
+                            Burn::decode_log(&log.inner, true).unwrap();
+
+                        let db_burn = DatabaseBurn::from_log(&log, event);
+
+                        db_burns.push(db_burn)
+                    }
+
+                    if topic == Swap::SIGNATURE {
+                        let event =
+                            Swap::decode_log(&log.inner, true).unwrap();
+
+                        let db_swap = DatabaseSwap::from_log(&log, event);
+
+                        db_swaps.push(db_swap)
+                    }
+
+                    if topic == Sync::SIGNATURE {
+                        let sync_event =
+                            Sync::decode_log(&log.inner, true).unwrap();
+
+                        sync_events.push(sync_event);
+                    }
+
+                    let db_log = DatabaseLog::from_rpc(&log, chain.id);
+
+                    db_logs.push(db_log)
+                }
+                None => continue,
+            }
+        }
+
+        (db_logs, db_mints, db_burns, db_swaps, sync_events)
     }
 }

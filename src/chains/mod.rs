@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct Chain {
-    pub id: i64,
+    pub id: u64,
     pub name: &'static str,
 }
 
