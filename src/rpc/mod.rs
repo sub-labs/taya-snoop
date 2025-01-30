@@ -3,22 +3,19 @@ use std::str::FromStr;
 use log::info;
 
 use crate::{
+    abi::{erc20::ERC20, factory::FACTORY},
     chains::Chain,
     configs::Config,
     db::models::{
-        burn::DatabaseBurn,
         factory::PairCreated,
-        log::DatabaseLog,
-        mint::DatabaseMint,
-        pair::{Burn, DatabasePair, Mint, Swap, Sync},
-        swap::DatabaseSwap,
+        pair::{Burn, Mint, Swap, Sync, Transfer},
     },
 };
 use alloy::{
     eips::BlockNumberOrTag,
-    primitives::{Address, Log},
+    primitives::Address,
     providers::{Provider, ProviderBuilder, RootProvider},
-    rpc::types::Filter,
+    rpc::types::{Filter, Log},
     sol_types::SolEvent,
     transports::http::{Client, Http},
 };
@@ -62,37 +59,17 @@ impl Rpc {
         first_block: u64,
         last_block: u64,
         config: &Config,
-    ) -> (Vec<DatabaseLog>, Vec<DatabasePair>) {
+    ) -> Vec<Log> {
         let filter = Filter::new()
             .from_block(BlockNumberOrTag::Number(first_block))
             .to_block(BlockNumberOrTag::Number(last_block))
             .address(config.factory.address)
             .event_signature(PairCreated::SIGNATURE_HASH);
 
-        let logs = self
-            .client
+        self.client
             .get_logs(&filter)
             .await
             .expect("unable to get logs from RPC")
-            .into_iter();
-
-        let mut db_logs: Vec<DatabaseLog> = vec![];
-        let mut db_pairs_created: Vec<DatabasePair> = vec![];
-
-        for log in logs {
-            let database_log =
-                DatabaseLog::from_rpc(&log, config.chain.id);
-
-            let event = PairCreated::decode_log(&log.inner, true).unwrap();
-
-            db_logs.push(database_log);
-
-            let pair = DatabasePair::from_log(&log, event);
-
-            db_pairs_created.push(pair);
-        }
-
-        (db_logs, db_pairs_created)
     }
 
     pub async fn get_pairs_logs_batch(
@@ -100,14 +77,7 @@ impl Rpc {
         pairs: &[String],
         first_block: u64,
         last_block: u64,
-        chain: &Chain,
-    ) -> (
-        Vec<DatabaseLog>,
-        Vec<DatabaseMint>,
-        Vec<DatabaseBurn>,
-        Vec<DatabaseSwap>,
-        Vec<Log<Sync>>,
-    ) {
+    ) -> (Vec<Log>, Vec<Log>, Vec<Log>, Vec<Log>, Vec<Log>) {
         let address_pairs: Vec<Address> = pairs
             .iter()
             .map(|pair| Address::from_str(pair).unwrap())
@@ -122,69 +92,92 @@ impl Rpc {
                 Burn::SIGNATURE_HASH,
                 Swap::SIGNATURE_HASH,
                 Sync::SIGNATURE_HASH,
+                Transfer::SIGNATURE_HASH,
             ]);
 
         let logs = self
             .client
             .get_logs(&filter)
             .await
-            .expect("unable to get logs from RPC")
-            .into_iter();
+            .expect("unable to get logs from RPC");
 
-        let mut db_logs: Vec<DatabaseLog> = vec![];
-        let mut db_mints: Vec<DatabaseMint> = vec![];
-        let mut db_burns: Vec<DatabaseBurn> = vec![];
-        let mut db_swaps: Vec<DatabaseSwap> = vec![];
-        let mut sync_events: Vec<Log<Sync>> = vec![];
+        let mut mint_logs: Vec<Log> = vec![];
+        let mut burn_logs: Vec<Log> = vec![];
+        let mut swap_logs: Vec<Log> = vec![];
+        let mut sync_logs: Vec<Log> = vec![];
+        let mut transfer_logs: Vec<Log> = vec![];
 
         for log in logs {
-            println!("{:?}", log);
             match log.topic0() {
                 Some(topic_raw) => {
                     let topic = topic_raw.to_string();
 
                     if topic == Mint::SIGNATURE {
-                        let event: Log<Mint> =
-                            Mint::decode_log(&log.inner, true).unwrap();
-
-                        let db_mint = DatabaseMint::from_log(&log, event);
-
-                        db_mints.push(db_mint);
+                        mint_logs.push(log);
+                    } else if topic == Burn::SIGNATURE {
+                        burn_logs.push(log)
+                    } else if topic == Swap::SIGNATURE {
+                        swap_logs.push(log)
+                    } else if topic == Sync::SIGNATURE {
+                        sync_logs.push(log);
+                    } else if topic == Transfer::SIGNATURE {
+                        transfer_logs.push(log);
                     }
-
-                    if topic == Burn::SIGNATURE {
-                        let event =
-                            Burn::decode_log(&log.inner, true).unwrap();
-
-                        let db_burn = DatabaseBurn::from_log(&log, event);
-
-                        db_burns.push(db_burn)
-                    }
-
-                    if topic == Swap::SIGNATURE {
-                        let event =
-                            Swap::decode_log(&log.inner, true).unwrap();
-
-                        let db_swap = DatabaseSwap::from_log(&log, event);
-
-                        db_swaps.push(db_swap)
-                    }
-
-                    if topic == Sync::SIGNATURE {
-                        let sync_event =
-                            Sync::decode_log(&log.inner, true).unwrap();
-
-                        sync_events.push(sync_event);
-                    }
-
-                    let db_log = DatabaseLog::from_rpc(&log, chain.id);
-
-                    db_logs.push(db_log)
                 }
                 None => continue,
             }
         }
 
-        (db_logs, db_mints, db_burns, db_swaps, sync_events)
+        (mint_logs, burn_logs, swap_logs, sync_logs, transfer_logs)
+    }
+
+    pub async fn get_token_information(
+        &self,
+        token: String,
+    ) -> (String, String, String, i64) {
+        let token =
+            ERC20::new(Address::from_str(&token).unwrap(), &self.client);
+
+        let name = match token.name().call().await {
+            Ok(name) => name._0,
+            Err(_) => "UNKNOWN".to_owned(),
+        };
+
+        let symbol = match token.symbol().call().await {
+            Ok(symbol) => symbol._0,
+            Err(_) => "UNKNOWN".to_owned(),
+        };
+
+        let total_supply = match token.totalSupply().call().await {
+            Ok(total_supply) => total_supply._0.to_string(),
+            Err(_) => "0".to_owned(),
+        };
+
+        let decimals = match token.decimals().call().await {
+            Ok(decimals) => decimals._0,
+            Err(_) => 0,
+        };
+
+        (name, symbol, total_supply, decimals as i64)
+    }
+
+    pub async fn get_pair_for_tokens(
+        &self,
+        token0: String,
+        token1: String,
+        config: &Config,
+    ) -> String {
+        let factory = FACTORY::new(config.factory.address, &self.client);
+
+        factory
+            .getPair(
+                Address::from_str(&token0).unwrap(),
+                Address::from_str(&token1).unwrap(),
+            )
+            .call()
+            .await
+            .unwrap()
+            ._0
+            .to_string()
     }
 }

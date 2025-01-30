@@ -1,7 +1,4 @@
-use alloy::{
-    primitives::{Log, LogData},
-    sol,
-};
+use alloy::{primitives::Log, sol};
 use serde::{Deserialize, Serialize};
 
 use super::factory::PairCreated;
@@ -18,6 +15,7 @@ sol! {
         address indexed to
     );
     event Sync(uint112 reserve0, uint112 reserve1);
+    event Transfer(address indexed,address indexed,uint256);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,10 +35,10 @@ pub struct DatabasePair {
     pub volume_token1: f64,
     pub volume_usd: f64,
     pub untracked_volume_usd: f64,
-    pub tx_count: u64,
-    pub created_at_timestamp: Option<u64>,
-    pub created_at_block_number: Option<u64>,
-    pub liquidity_provider_count: u64,
+    pub tx_count: i64,
+    pub created_at_timestamp: i64,
+    pub created_at_block_number: i64,
+    pub liquidity_provider_count: i64,
     // TODO: find a way to make the relationship
     // pub pair_hour_data: Vec<String>,
     // pub mints: Vec<String>,
@@ -49,9 +47,10 @@ pub struct DatabasePair {
 }
 
 impl DatabasePair {
-    pub fn from_log(
-        log: &alloy::rpc::types::Log<LogData>,
+    pub fn new(
         event: Log<PairCreated>,
+        created_at_timestamp: i64,
+        created_at_block_number: i64,
     ) -> Self {
         Self {
             id: event.pair.to_string(),
@@ -70,8 +69,8 @@ impl DatabasePair {
             volume_usd: 0.0,
             untracked_volume_usd: 0.0,
             tx_count: 0,
-            created_at_timestamp: log.block_timestamp,
-            created_at_block_number: log.block_number,
+            created_at_timestamp,
+            created_at_block_number,
             liquidity_provider_count: 0,
         }
     }

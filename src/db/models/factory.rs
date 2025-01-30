@@ -1,7 +1,7 @@
 use alloy::sol;
 use serde::{Deserialize, Serialize};
 
-use crate::{configs::Config, db::DatabaseKeys};
+use crate::db::DatabaseKeys;
 
 sol! {
     event PairCreated(address indexed token0, address indexed token1, address pair, uint);
@@ -18,6 +18,12 @@ pub struct DatabaseFactory {
     pub total_liquidity_eth: f64,
     pub tx_count: i64,
     pub pairs: Vec<String>,
+}
+
+impl Default for DatabaseFactory {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DatabaseFactory {

@@ -1,9 +1,12 @@
 pub mod models;
 
-use crate::{chains::Chain, configs::Config};
+use crate::chains::Chain;
 
 use log::*;
-use models::{factory::DatabaseFactory, sync_state::DatabaseSyncState};
+use models::{
+    bundle::DatabaseBundle, factory::DatabaseFactory, pair::DatabasePair,
+    sync_state::DatabaseSyncState, token::DatabaseToken,
+};
 use mongodb::{
     bson::doc,
     options::{ClientOptions, ServerApi, ServerApiVersion},
@@ -20,13 +23,13 @@ pub struct Database {
 pub enum DatabaseKeys {
     State,
     Factory,
+    Bundle,
     Logs,
     Burns,
     Mints,
     Swaps,
     Transactions,
     Users,
-    Bundle,
     Tokens,
     Pairs,
     DexDayData,
@@ -40,13 +43,13 @@ impl DatabaseKeys {
         match self {
             DatabaseKeys::State => "sync_state",
             DatabaseKeys::Factory => "taya_swap",
+            DatabaseKeys::Bundle => "bundle",
             DatabaseKeys::Logs => "logs",
             DatabaseKeys::Burns => "burns",
             DatabaseKeys::Mints => "mints",
             DatabaseKeys::Swaps => "swaps",
             DatabaseKeys::Transactions => "transactions",
             DatabaseKeys::Users => "users",
-            DatabaseKeys::Bundle => "bundle",
             DatabaseKeys::Tokens => "tokens",
             DatabaseKeys::Pairs => "pairs",
             DatabaseKeys::DexDayData => "dex_day_data",
@@ -106,17 +109,16 @@ impl Database {
         }
     }
 
-    pub async fn get_factory(&self, config: &Config) -> DatabaseFactory {
+    pub async fn get_factory(&self) -> DatabaseFactory {
         let factory_key = DatabaseKeys::Factory.as_str();
 
-        let factory = self
+        match self
             .db
             .collection::<DatabaseFactory>(factory_key)
             .find_one(doc! { "id": { "$eq": factory_key}})
             .await
-            .unwrap();
-
-        match factory {
+            .unwrap()
+        {
             Some(factory) => factory,
             None => {
                 let new_factory = DatabaseFactory::new();
@@ -130,6 +132,56 @@ impl Database {
                 new_factory
             }
         }
+    }
+
+    pub async fn get_token(
+        &self,
+        token_id: String,
+    ) -> Option<DatabaseToken> {
+        self.db
+            .collection::<DatabaseToken>(DatabaseKeys::Tokens.as_str())
+            .find_one(doc! { "id": { "$eq": token_id}})
+            .await
+            .unwrap()
+    }
+
+    pub async fn get_pair(&self, pair_id: String) -> Option<DatabasePair> {
+        self.db
+            .collection::<DatabasePair>(DatabaseKeys::Pairs.as_str())
+            .find_one(doc! { "id": { "$eq": pair_id}})
+            .await
+            .unwrap()
+    }
+
+    pub async fn get_bundle(&self) -> DatabaseBundle {
+        let bundle_key = DatabaseKeys::Factory.as_str();
+
+        match self
+            .db
+            .collection::<DatabaseBundle>(bundle_key)
+            .find_one(doc! { "id": { "$eq": bundle_key}})
+            .await
+            .unwrap()
+        {
+            Some(bundle) => bundle,
+            None => {
+                let new_bundle: DatabaseBundle = DatabaseBundle::new();
+
+                self.db
+                    .collection::<DatabaseBundle>(bundle_key)
+                    .insert_one(&new_bundle)
+                    .await
+                    .unwrap();
+
+                new_bundle
+            }
+        }
+    }
+
+    pub async fn get_pairs(&self) -> Vec<String> {
+        let factory = self.get_factory().await;
+
+        factory.pairs
     }
 
     pub async fn update_factory(&self, factory: &DatabaseFactory) {
@@ -151,6 +203,84 @@ impl Database {
         self.db
             .collection::<DatabaseFactory>(factory_key)
             .update_one(filter, update)
+            .upsert(true)
+            .await
+            .unwrap();
+    }
+
+    pub async fn update_token(&self, token: &DatabaseToken) {
+        let token_id = token.id.clone();
+
+        let filter = doc! { "id": token_id };
+        let update = doc! {
+        "$set": {
+            "symbol": token.symbol.clone(),
+            "name": token.name.clone(),
+            "decimals": token.decimals,
+            "total_supply": token.total_supply.clone(),
+            "trade_volume": token.trade_volume,
+            "trade_volume_usd": token.trade_volume_usd,
+            "untracked_volume_usd": token.untracked_volume_usd,
+            "tx_count": token.tx_count,
+            "total_liquidity": token.total_liquidity,
+            "derived_eth": token.derived_eth,
+        }};
+
+        self.db
+            .collection::<DatabaseToken>(DatabaseKeys::Tokens.as_str())
+            .update_one(filter, update)
+            .upsert(true)
+            .await
+            .unwrap();
+    }
+
+    pub async fn update_bundle(&self, bundle: &DatabaseBundle) {
+        let bundle_key = DatabaseKeys::Bundle.as_str();
+
+        let filter = doc! { "id": bundle_key };
+        let update = doc! {
+        "$set": {
+            "eth_price": bundle.eth_price,
+        }};
+
+        self.db
+            .collection::<DatabaseBundle>(bundle_key)
+            .update_one(filter, update)
+            .upsert(true)
+            .await
+            .unwrap();
+    }
+
+    pub async fn update_pair(&self, pair: &DatabasePair) {
+        let pair_key = &pair.id;
+
+        let filter = doc! { "id": pair_key };
+        let update = doc! {
+        "$set": {
+            "token0": pair.token0.clone(),
+            "token1": pair.token1.clone(),
+            "reserve0": pair.reserve0,
+            "reserve1": pair.reserve1,
+            "total_supply": pair.total_supply,
+            "reserve_eth": pair.reserve_eth,
+            "reserve_usd": pair.reserve_usd,
+            "tracked_reserve_eth": pair.tracked_reserve_eth,
+            "token0_price": pair.token0_price,
+            "token1_price": pair.token1_price,
+            "volume_token0": pair.volume_token0,
+            "volume_token1": pair.volume_token1,
+            "volume_usd": pair.volume_usd,
+            "untracked_volume_usd": pair.untracked_volume_usd,
+            "tx_count": pair.tx_count,
+            "created_at_timestamp": pair.created_at_timestamp,
+            "created_at_block_number": pair.created_at_block_number,
+            "liquidity_provider_count": pair.liquidity_provider_count,
+        }};
+
+        self.db
+            .collection::<DatabasePair>(pair_key)
+            .update_one(filter, update)
+            .upsert(true)
             .await
             .unwrap();
     }
@@ -167,6 +297,7 @@ impl Database {
         self.db
             .collection::<DatabaseSyncState>(sync_state_key)
             .update_one(filter, update)
+            .upsert(true)
             .await
             .unwrap();
     }
