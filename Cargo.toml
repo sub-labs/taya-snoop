@@ -8,6 +8,7 @@ description = "Taya logs and event indexer"
 
 [dependencies]
 alloy = { version = "0.9", features = ["full"] }
+bigdecimal = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
 futures = "0.3"
 log = "0.4"

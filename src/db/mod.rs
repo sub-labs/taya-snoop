@@ -140,7 +140,7 @@ impl Database {
     ) -> Option<DatabaseToken> {
         self.db
             .collection::<DatabaseToken>(DatabaseKeys::Tokens.as_str())
-            .find_one(doc! { "id": { "$eq": token_id}})
+            .find_one(doc! { "id": { "$eq": token_id.to_lowercase()}})
             .await
             .unwrap()
     }
@@ -148,13 +148,13 @@ impl Database {
     pub async fn get_pair(&self, pair_id: String) -> Option<DatabasePair> {
         self.db
             .collection::<DatabasePair>(DatabaseKeys::Pairs.as_str())
-            .find_one(doc! { "id": { "$eq": pair_id}})
+            .find_one(doc! { "id": { "$eq": pair_id.to_lowercase()}})
             .await
             .unwrap()
     }
 
     pub async fn get_bundle(&self) -> DatabaseBundle {
-        let bundle_key = DatabaseKeys::Factory.as_str();
+        let bundle_key = DatabaseKeys::Bundle.as_str();
 
         match self
             .db
@@ -188,17 +188,11 @@ impl Database {
         let factory_key = DatabaseKeys::Factory.as_str();
 
         let filter = doc! { "id": factory_key };
+
+        let doc = mongodb::bson::to_document(factory).unwrap();
+
         let update = doc! {
-        "$set": {
-            "pair_count": factory.pair_count,
-            "total_volume_usd": factory.total_volume_eth,
-            "total_volume_eth": factory.total_volume_eth,
-            "untracked_volume_usd": factory.untracked_volume_usd,
-            "total_liquidity_usd": factory.total_liquidity_usd,
-            "total_liquidity_eth": factory.total_liquidity_eth,
-            "tx_count": factory.tx_count,
-            "pairs": factory.pairs.clone()
-        }};
+        "$set": doc};
 
         self.db
             .collection::<DatabaseFactory>(factory_key)
@@ -209,26 +203,15 @@ impl Database {
     }
 
     pub async fn update_token(&self, token: &DatabaseToken) {
-        let token_id = token.id.clone();
+        let token_id = token.id.clone().to_lowercase();
 
         let filter = doc! { "id": token_id };
-        let update = doc! {
-        "$set": {
-            "symbol": token.symbol.clone(),
-            "name": token.name.clone(),
-            "decimals": token.decimals,
-            "total_supply": token.total_supply.clone(),
-            "trade_volume": token.trade_volume,
-            "trade_volume_usd": token.trade_volume_usd,
-            "untracked_volume_usd": token.untracked_volume_usd,
-            "tx_count": token.tx_count,
-            "total_liquidity": token.total_liquidity,
-            "derived_eth": token.derived_eth,
-        }};
+
+        let doc = mongodb::bson::to_document(token).unwrap();
 
         self.db
             .collection::<DatabaseToken>(DatabaseKeys::Tokens.as_str())
-            .update_one(filter, update)
+            .update_one(filter, doc! { "$set": doc })
             .upsert(true)
             .await
             .unwrap();
@@ -238,48 +221,27 @@ impl Database {
         let bundle_key = DatabaseKeys::Bundle.as_str();
 
         let filter = doc! { "id": bundle_key };
-        let update = doc! {
-        "$set": {
-            "eth_price": bundle.eth_price,
-        }};
+
+        let doc = mongodb::bson::to_document(bundle).unwrap();
 
         self.db
             .collection::<DatabaseBundle>(bundle_key)
-            .update_one(filter, update)
+            .update_one(filter, doc! { "$set": doc })
             .upsert(true)
             .await
             .unwrap();
     }
 
     pub async fn update_pair(&self, pair: &DatabasePair) {
-        let pair_key = &pair.id;
+        let pair_key = pair.id.to_lowercase();
 
         let filter = doc! { "id": pair_key };
-        let update = doc! {
-        "$set": {
-            "token0": pair.token0.clone(),
-            "token1": pair.token1.clone(),
-            "reserve0": pair.reserve0,
-            "reserve1": pair.reserve1,
-            "total_supply": pair.total_supply,
-            "reserve_eth": pair.reserve_eth,
-            "reserve_usd": pair.reserve_usd,
-            "tracked_reserve_eth": pair.tracked_reserve_eth,
-            "token0_price": pair.token0_price,
-            "token1_price": pair.token1_price,
-            "volume_token0": pair.volume_token0,
-            "volume_token1": pair.volume_token1,
-            "volume_usd": pair.volume_usd,
-            "untracked_volume_usd": pair.untracked_volume_usd,
-            "tx_count": pair.tx_count,
-            "created_at_timestamp": pair.created_at_timestamp,
-            "created_at_block_number": pair.created_at_block_number,
-            "liquidity_provider_count": pair.liquidity_provider_count,
-        }};
+
+        let doc = mongodb::bson::to_document(pair).unwrap();
 
         self.db
-            .collection::<DatabasePair>(pair_key)
-            .update_one(filter, update)
+            .collection::<DatabasePair>(DatabaseKeys::Pairs.as_str())
+            .update_one(filter, doc! { "$set": doc })
             .upsert(true)
             .await
             .unwrap();

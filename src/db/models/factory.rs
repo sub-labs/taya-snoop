@@ -1,4 +1,5 @@
 use alloy::sol;
+use bigdecimal::{BigDecimal, Zero};
 use serde::{Deserialize, Serialize};
 
 use crate::db::DatabaseKeys;
@@ -11,11 +12,11 @@ sol! {
 pub struct DatabaseFactory {
     pub id: String,
     pub pair_count: i32,
-    pub total_volume_usd: f64,
-    pub total_volume_eth: f64,
-    pub untracked_volume_usd: f64,
-    pub total_liquidity_usd: f64,
-    pub total_liquidity_eth: f64,
+    pub total_volume_usd: BigDecimal,
+    pub total_volume_eth: BigDecimal,
+    pub untracked_volume_usd: BigDecimal,
+    pub total_liquidity_usd: BigDecimal,
+    pub total_liquidity_eth: BigDecimal,
     pub tx_count: i64,
     pub pairs: Vec<String>,
 }
@@ -31,11 +32,11 @@ impl DatabaseFactory {
         Self {
             id: DatabaseKeys::Factory.as_str().to_owned(),
             pair_count: 0,
-            total_volume_usd: 0.0,
-            total_volume_eth: 0.0,
-            untracked_volume_usd: 0.0,
-            total_liquidity_usd: 0.0,
-            total_liquidity_eth: 0.0,
+            total_volume_usd: BigDecimal::zero(),
+            total_volume_eth: BigDecimal::zero(),
+            untracked_volume_usd: BigDecimal::zero(),
+            total_liquidity_usd: BigDecimal::zero(),
+            total_liquidity_eth: BigDecimal::zero(),
             tx_count: 0,
             pairs: vec![],
         }

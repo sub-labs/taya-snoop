@@ -1,4 +1,5 @@
 use alloy::primitives::{Log, LogData};
+use bigdecimal::{BigDecimal, Zero};
 use serde::{Deserialize, Serialize};
 
 use super::pair::Swap;
@@ -11,13 +12,13 @@ pub struct DatabaseSwap {
     pub pair: String,
     pub sender: String,
     pub from: String,
-    pub amount0_in: f64,
-    pub amount1_in: f64,
-    pub amount0_out: f64,
-    pub amount1_out: f64,
+    pub amount0_in: BigDecimal,
+    pub amount1_in: BigDecimal,
+    pub amount0_out: BigDecimal,
+    pub amount1_out: BigDecimal,
     pub to: String,
     pub log_index: Option<u64>,
-    pub amount_usd: f64,
+    pub amount_usd: BigDecimal,
 }
 
 impl DatabaseSwap {
@@ -38,14 +39,14 @@ impl DatabaseSwap {
             sender: event.sender.to_string(),
             // TODO: fix 'from' and 'amounts'
             from: "".to_owned(),
-            amount0_in: 0.0,
-            amount1_in: 0.0,
-            amount0_out: 0.0,
-            amount1_out: 0.0,
+            amount0_in: BigDecimal::zero(),
+            amount1_in: BigDecimal::zero(),
+            amount0_out: BigDecimal::zero(),
+            amount1_out: BigDecimal::zero(),
             to: event.to.to_string(),
             log_index: log.log_index,
             // TODO: add amount_usd
-            amount_usd: 0.0,
+            amount_usd: BigDecimal::zero(),
         }
     }
 }

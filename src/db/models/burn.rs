@@ -1,4 +1,5 @@
 use alloy::primitives::{Log, LogData};
+use bigdecimal::{BigDecimal, Zero};
 use serde::{Deserialize, Serialize};
 
 use super::pair::Burn;
@@ -9,16 +10,16 @@ pub struct DatabaseBurn {
     pub transaction: String,
     pub timestamp: u64,
     pub pair: String,
-    pub liquidity: f64,
+    pub liquidity: BigDecimal,
     pub sender: Option<String>,
-    pub amount0: Option<f64>,
-    pub amount1: Option<f64>,
+    pub amount0: Option<BigDecimal>,
+    pub amount1: Option<BigDecimal>,
     pub to: Option<String>,
     pub log_index: Option<u64>,
-    pub amount_usd: Option<f64>,
+    pub amount_usd: Option<BigDecimal>,
     pub needs_complete: bool,
     pub fee_to: Option<String>,
-    pub fee_liquidity: Option<f64>,
+    pub fee_liquidity: Option<BigDecimal>,
 }
 
 impl DatabaseBurn {
@@ -39,16 +40,16 @@ impl DatabaseBurn {
             pair: event.address.to_string(),
             // TODO: fix 'to' and 'liquidity'
             to: Some("".to_owned()),
-            liquidity: 0.0,
+            liquidity: BigDecimal::zero(),
             sender: Some(event.sender.to_string()),
             // TODO: fix amounts
-            amount0: Some(0.0),
-            amount1: Some(0.0),
+            amount0: Some(BigDecimal::zero()),
+            amount1: Some(BigDecimal::zero()),
             log_index: log.log_index,
             // TODO: fix amount usd and fees
-            amount_usd: Some(0.0),
+            amount_usd: Some(BigDecimal::zero()),
             fee_to: Some("".to_owned()),
-            fee_liquidity: Some(0.0),
+            fee_liquidity: Some(BigDecimal::zero()),
             // TODO: fix 'needs_complete'
             needs_complete: false,
         }

@@ -1,3 +1,4 @@
+use bigdecimal::{BigDecimal, Zero};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -7,12 +8,12 @@ pub struct DatabaseToken {
     pub name: String,
     pub decimals: i64,
     pub total_supply: String,
-    pub trade_volume: f64,
-    pub trade_volume_usd: f64,
-    pub untracked_volume_usd: f64,
+    pub trade_volume: BigDecimal,
+    pub trade_volume_usd: BigDecimal,
+    pub untracked_volume_usd: BigDecimal,
     pub tx_count: i64,
-    pub total_liquidity: f64,
-    pub derived_eth: f64,
+    pub total_liquidity: BigDecimal,
+    pub derived_eth: BigDecimal,
 }
 
 impl DatabaseToken {
@@ -24,17 +25,17 @@ impl DatabaseToken {
         total_supply: String,
     ) -> Self {
         Self {
-            id: address,
+            id: address.to_lowercase(),
             symbol,
             name,
             decimals,
             total_supply,
-            trade_volume: 0.0,
-            trade_volume_usd: 0.0,
-            untracked_volume_usd: 0.0,
+            trade_volume: BigDecimal::zero(),
+            trade_volume_usd: BigDecimal::zero(),
+            untracked_volume_usd: BigDecimal::zero(),
             tx_count: 0,
-            total_liquidity: 0.0,
-            derived_eth: 0.0,
+            total_liquidity: BigDecimal::zero(),
+            derived_eth: BigDecimal::zero(),
         }
     }
 }

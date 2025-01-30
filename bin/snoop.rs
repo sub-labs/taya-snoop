@@ -3,6 +3,7 @@ use alloy::{
     rpc::types::Log,
     sol_types::SolEvent,
 };
+use bigdecimal::{BigDecimal, FromPrimitive, One, Zero};
 use log::{info, LevelFilter};
 use simple_logger::SimpleLogger;
 use taya_snoop::{
@@ -78,23 +79,27 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
 
         let pairs = db.get_pairs().await;
 
-        let (mints, burns, swaps, sync, transfers) = rpc
-            .get_pairs_logs_batch(
-                &pairs,
-                first_block as u64,
-                last_block as u64,
-            )
-            .await;
+        if !pairs.is_empty() {
+            let (mints, burns, swaps, syncs, transfers) = rpc
+                .get_pairs_logs_batch(
+                    &pairs,
+                    first_block as u64,
+                    last_block as u64,
+                )
+                .await;
 
-        handle_mints(mints, db).await;
+            handle_mints(&mints, db).await;
 
-        handle_burns(burns, db).await;
+            handle_burns(&burns, db).await;
 
-        handle_swaps(swaps, db).await;
+            handle_swaps(&swaps, db).await;
 
-        handle_syncs(sync, db, rpc, config).await;
+            handle_syncs(&syncs, db, rpc, config).await;
 
-        handle_transfers(transfers, db).await;
+            handle_transfers(&transfers, db).await;
+
+            info!("Procesed {} mints {} burns {} swaps {} sync and {} transfer events", mints.len(), burns.len(), swaps.len(), syncs.len(), transfers.len());
+        }
 
         db.update_last_block_indexed(last_block).await;
     }
@@ -163,30 +168,24 @@ async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
 
         // Store the factory and the new pair
         db.update_factory(&factory).await;
-        db.store::<DatabasePair>(
-            taya_snoop::db::DatabaseKeys::Pairs,
-            &vec![db_pair],
-        )
-        .await;
+        db.update_pair(&db_pair).await;
     }
 
     info!("Stored {} pairs and {} tokens", count_pairs, count_tokens);
 }
 
-async fn handle_mints(mints: Vec<Log>, db: &Database) {}
+async fn handle_mints(mints: &Vec<Log>, db: &Database) {}
 
-async fn handle_burns(burns: Vec<Log>, db: &Database) {}
+async fn handle_burns(burns: &Vec<Log>, db: &Database) {}
 
-async fn handle_swaps(swap: Vec<Log>, db: &Database) {}
+async fn handle_swaps(swap: &Vec<Log>, db: &Database) {}
 
 async fn handle_syncs(
-    syncs: Vec<Log>,
+    syncs: &Vec<Log>,
     db: &Database,
     rpc: &Rpc,
     config: &Config,
 ) {
-    let sync_count = syncs.len();
-
     for log in syncs {
         let event = Sync::decode_log(&log.inner, true).unwrap();
 
@@ -202,37 +201,45 @@ async fn handle_syncs(
         // Load the factory
         let mut factory = db.get_factory().await;
 
-        factory.total_liquidity_eth -= pair.tracked_reserve_eth;
+        factory.total_liquidity_eth -= pair.tracked_reserve_eth.clone();
 
         token0.total_liquidity -= pair.reserve0;
         token1.total_liquidity -= pair.reserve1;
 
-        pair.reserve0 = format_units(
-            U256::from(event.reserve0),
-            token0.decimals as u8,
+        pair.reserve0 = BigDecimal::from_f64(
+            format_units(
+                U256::from(event.reserve0),
+                token0.decimals as u8,
+            )
+            .unwrap()
+            .parse::<f64>()
+            .unwrap(),
         )
-        .unwrap()
-        .parse::<f64>()
         .unwrap();
 
-        pair.reserve1 = format_units(
-            U256::from(event.reserve1),
-            token0.decimals as u8,
+        pair.reserve1 = BigDecimal::from_f64(
+            format_units(
+                U256::from(event.reserve1),
+                token0.decimals as u8,
+            )
+            .unwrap()
+            .parse::<f64>()
+            .unwrap(),
         )
-        .unwrap()
-        .parse::<f64>()
         .unwrap();
 
-        if pair.reserve0 != 0.0 {
-            pair.token0_price = pair.reserve0 / pair.reserve1
+        if pair.reserve0.ne(&BigDecimal::zero()) {
+            pair.token0_price =
+                pair.reserve0.clone() / pair.reserve1.clone()
         } else {
-            pair.token0_price = 0.0
+            pair.token0_price = BigDecimal::zero()
         }
 
-        if pair.reserve1 != 0.0 {
-            pair.token1_price = pair.reserve1 / pair.reserve0
+        if pair.reserve1.ne(&BigDecimal::zero()) {
+            pair.token1_price =
+                pair.reserve1.clone() / pair.reserve0.clone()
         } else {
-            pair.token1_price = 0.0
+            pair.token1_price = BigDecimal::zero()
         }
 
         db.update_pair(&pair).await;
@@ -252,98 +259,105 @@ async fn handle_syncs(
         db.update_token(&token0).await;
         db.update_token(&token1).await;
 
-        let mut tracked_liquidity_eth = 0.0;
-        if bundle.eth_price != 0.0 {
+        let mut tracked_liquidity_eth = BigDecimal::zero();
+        if bundle.eth_price.ne(&BigDecimal::zero()) {
             tracked_liquidity_eth = get_tracked_liquidity_usd(
-                pair.reserve0,
+                pair.reserve0.clone(),
                 &token0,
-                pair.reserve1,
+                pair.reserve1.clone(),
                 &token1,
                 db,
             )
             .await
         }
 
-        pair.tracked_reserve_eth = tracked_liquidity_eth;
-        pair.reserve_eth = (pair.reserve0 * token0.derived_eth)
-            + (pair.reserve1 * token1.derived_eth);
+        pair.tracked_reserve_eth = tracked_liquidity_eth.clone();
+        pair.reserve_eth = (pair.reserve0.clone()
+            * token0.derived_eth.clone())
+            + (pair.reserve1.clone() * token1.derived_eth.clone());
 
-        pair.reserve_usd = pair.reserve_eth * bundle.eth_price;
+        pair.reserve_usd =
+            pair.reserve_eth.clone() * bundle.eth_price.clone();
 
         factory.total_liquidity_eth += tracked_liquidity_eth;
         factory.total_liquidity_usd =
-            factory.total_liquidity_eth * bundle.eth_price;
+            factory.total_liquidity_eth.clone() * bundle.eth_price;
 
-        token0.total_liquidity += pair.reserve0;
-        token1.total_liquidity += pair.reserve1;
+        token0.total_liquidity += pair.reserve0.clone();
+        token1.total_liquidity += pair.reserve1.clone();
 
         db.update_pair(&pair).await;
         db.update_factory(&factory).await;
         db.update_token(&token0).await;
         db.update_token(&token1).await;
     }
-
-    info!("Procesed {} sync events", sync_count);
 }
 
-async fn handle_transfers(transfers: Vec<Log>, db: &Database) {}
+async fn handle_transfers(transfers: &Vec<Log>, db: &Database) {}
 
 const MINIMUM_LIQUIDITY_THRESHOLD_ETH: f64 = 2.0;
 
 const WHITELIST_TOKENS: [&str; 4] = [
-    "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701", // WETH
-    "0x1ed9ca7e442a91591acecfb2d40e843e4fee00ff", // USDT
-    "0xff901f49b8864ad60cc5799cc9172ae0455ec1d3", // USDC
-    "0x2f1014530ed895245ecb5f9a79de023102f2e741", // DAI
+    "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", // WETH
+    "0xdac17f958d2ee523a2206206994597c13d831ec7", // USDT
+    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", // USDC
+    "0x6b175474e89094c44da98b954eedeac495271d0f", // DAI
 ];
 
 pub const WETH_ADDRESS: &str =
     "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
 pub const DAI_WETH_PAIR: &str =
-    "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
+    "0xa478c2975ab1ea89e8196811f51a7b7ade33eb11";
 pub const USDC_WETH_PAIR: &str =
-    "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
+    "0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc";
 pub const USDT_WETH_PAIR: &str =
-    "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
+    "0x0d4a11d5eeaac28ec3f61d100daf4d40471f1852";
 
-async fn get_eth_price_usd(db: &Database) -> f64 {
-    // Get ETH prices for each stablecoin
-    let dai_pair = db.get_pair(DAI_WETH_PAIR.to_owned()).await; // DAI is token0
-    let usdc_pair = db.get_pair(USDC_WETH_PAIR.to_owned()).await; // USDC is token0
-    let usdt_pair = db.get_pair(USDT_WETH_PAIR.to_owned()).await; // USDT is token1
+async fn get_eth_price_usd(db: &Database) -> BigDecimal {
+    let dai_pair = db.get_pair(DAI_WETH_PAIR.to_owned()).await;
+    let usdc_pair = db.get_pair(USDC_WETH_PAIR.to_owned()).await;
+    let usdt_pair = db.get_pair(USDT_WETH_PAIR.to_owned()).await;
 
-    if dai_pair.is_some() && usdc_pair.is_some() && usdt_pair.is_some() {
-        let dai_pair = dai_pair.unwrap();
-        let usdc_pair = usdc_pair.unwrap();
-        let usdt_pair = usdt_pair.unwrap();
+    match (dai_pair, usdc_pair, usdt_pair) {
+        (Some(dai), Some(usdc), Some(usdt)) => {
+            let total_liquidity_eth = dai.reserve1.clone()
+                + usdc.reserve1.clone()
+                + usdt.reserve0.clone();
 
-        let total_liquidity_eth =
-            dai_pair.reserve1 + usdc_pair.reserve1 + usdt_pair.reserve0;
+            if total_liquidity_eth.eq(&BigDecimal::zero()) {
+                return BigDecimal::zero();
+            }
 
-        let dai_weigth = dai_pair.reserve1 / total_liquidity_eth;
-        let usdc_weigth = usdc_pair.reserve1 / total_liquidity_eth;
-        let usdt_weigth = usdt_pair.reserve0 / total_liquidity_eth;
+            let dai_weight =
+                dai.reserve1.clone() / total_liquidity_eth.clone();
+            let usdc_weight =
+                usdc.reserve1.clone() / total_liquidity_eth.clone();
+            let usdt_weight =
+                usdt.reserve0.clone() / total_liquidity_eth.clone();
 
-        (dai_pair.token0_price * dai_weigth)
-            + (usdc_pair.token0_price * usdc_weigth)
-            + (usdt_pair.token1_price * usdt_weigth)
-    } else if dai_pair.is_some() && usdc_pair.is_some() {
-        let dai_pair = dai_pair.unwrap();
-        let usdc_pair = usdc_pair.unwrap();
+            (dai.token0_price * dai_weight)
+                + (usdc.token0_price * usdc_weight)
+                + (usdt.token1_price * usdt_weight)
+        }
+        (Some(dai), Some(usdc), None) => {
+            let total_liquidity_eth =
+                dai.reserve1.clone() + usdc.reserve1.clone();
 
-        let total_liquidity_eth = dai_pair.reserve1 + usdc_pair.reserve1;
+            if total_liquidity_eth.eq(&BigDecimal::zero()) {
+                return BigDecimal::zero();
+            }
 
-        let dai_weigth = dai_pair.reserve1 / total_liquidity_eth;
-        let usdc_weigth = usdc_pair.reserve1 / total_liquidity_eth;
+            let dai_weight =
+                dai.reserve1.clone() / total_liquidity_eth.clone();
+            let usdc_weight =
+                usdc.reserve1.clone() / total_liquidity_eth.clone();
 
-        (dai_pair.token0_price * dai_weigth)
-            + (usdc_pair.token0_price * usdc_weigth)
-    } else if usdc_pair.is_some() {
-        let usdc_pair = usdc_pair.unwrap();
-
-        usdc_pair.token0_price
-    } else {
-        return 0.0;
+            (dai.token0_price * dai_weight)
+                + (usdc.token0_price * usdc_weight)
+        }
+        (_, Some(usdc), _) => usdc.token0_price,
+        // No pairs
+        _ => BigDecimal::zero(),
     }
 }
 
@@ -352,9 +366,9 @@ async fn find_eth_per_token(
     rpc: &Rpc,
     db: &Database,
     config: &Config,
-) -> f64 {
+) -> BigDecimal {
     if token.id == WETH_ADDRESS {
-        return 1.0;
+        return BigDecimal::one();
     }
 
     // Loop through a set of whitelisted tokens to check if there is any pair for this token.
@@ -374,8 +388,12 @@ async fn find_eth_per_token(
             }
 
             let pair = pair.unwrap();
+            let minimum_liquidity =
+                BigDecimal::from_f64(MINIMUM_LIQUIDITY_THRESHOLD_ETH)
+                    .unwrap();
+
             if pair.token0 == token.id
-                && pair.reserve_eth >= MINIMUM_LIQUIDITY_THRESHOLD_ETH
+                && pair.reserve_eth.ge(&minimum_liquidity)
             {
                 let token0 = db.get_token(pair.token0).await;
                 if token0.is_none() {
@@ -387,7 +405,7 @@ async fn find_eth_per_token(
                 return pair.token0_price * token0.derived_eth;
             }
             if pair.token1 == token.id
-                && pair.reserve_eth >= MINIMUM_LIQUIDITY_THRESHOLD_ETH
+                && pair.reserve_eth.ge(&minimum_liquidity)
             {
                 let token1 = db.get_token(pair.token1).await;
                 if token1.is_none() {
@@ -401,20 +419,20 @@ async fn find_eth_per_token(
         }
     }
 
-    0.0
+    BigDecimal::zero()
 }
 
 async fn get_tracked_liquidity_usd(
-    token_amount0: f64,
+    token_amount0: BigDecimal,
     token0: &DatabaseToken,
-    token_amount1: f64,
+    token_amount1: BigDecimal,
     token1: &DatabaseToken,
     db: &Database,
-) -> f64 {
+) -> BigDecimal {
     let bundle = db.get_bundle().await;
 
-    let price0 = token0.derived_eth * bundle.eth_price;
-    let price1 = token1.derived_eth * bundle.eth_price;
+    let price0 = token0.derived_eth.clone() * bundle.eth_price.clone();
+    let price1 = token1.derived_eth.clone() * bundle.eth_price.clone();
 
     if WHITELIST_TOKENS.contains(&token0.id.as_str())
         && WHITELIST_TOKENS.contains(&token1.id.as_str())
@@ -425,14 +443,16 @@ async fn get_tracked_liquidity_usd(
     if WHITELIST_TOKENS.contains(&token0.id.as_str())
         && !WHITELIST_TOKENS.contains(&token1.id.as_str())
     {
-        return (token_amount0 * price0) * 2.0;
+        return (token_amount0 * price0)
+            * BigDecimal::from_usize(2).unwrap();
     }
 
     if !WHITELIST_TOKENS.contains(&token0.id.as_str())
         && !WHITELIST_TOKENS.contains(&token1.id.as_str())
     {
-        return (token_amount1 * price1) * 2.0;
+        return (token_amount1 * price1)
+            * BigDecimal::from_usize(2).unwrap();
     }
 
-    0.0
+    BigDecimal::zero()
 }

@@ -64,7 +64,7 @@ impl Rpc {
             .from_block(BlockNumberOrTag::Number(first_block))
             .to_block(BlockNumberOrTag::Number(last_block))
             .address(config.factory.address)
-            .event_signature(PairCreated::SIGNATURE_HASH);
+            .event(PairCreated::SIGNATURE);
 
         self.client
             .get_logs(&filter)
@@ -88,11 +88,11 @@ impl Rpc {
             .to_block(BlockNumberOrTag::Number(last_block))
             .address(address_pairs)
             .events(vec![
-                Mint::SIGNATURE_HASH,
-                Burn::SIGNATURE_HASH,
-                Swap::SIGNATURE_HASH,
-                Sync::SIGNATURE_HASH,
-                Transfer::SIGNATURE_HASH,
+                Mint::SIGNATURE,
+                Burn::SIGNATURE,
+                Swap::SIGNATURE,
+                Sync::SIGNATURE,
+                Transfer::SIGNATURE,
             ]);
 
         let logs = self
@@ -112,15 +112,16 @@ impl Rpc {
                 Some(topic_raw) => {
                     let topic = topic_raw.to_string();
 
-                    if topic == Mint::SIGNATURE {
+                    if topic == Mint::SIGNATURE_HASH.to_string() {
                         mint_logs.push(log);
-                    } else if topic == Burn::SIGNATURE {
+                    } else if topic == Burn::SIGNATURE_HASH.to_string() {
                         burn_logs.push(log)
-                    } else if topic == Swap::SIGNATURE {
+                    } else if topic == Swap::SIGNATURE_HASH.to_string() {
                         swap_logs.push(log)
-                    } else if topic == Sync::SIGNATURE {
+                    } else if topic == Sync::SIGNATURE_HASH.to_string() {
                         sync_logs.push(log);
-                    } else if topic == Transfer::SIGNATURE {
+                    } else if topic == Transfer::SIGNATURE_HASH.to_string()
+                    {
                         transfer_logs.push(log);
                     }
                 }
