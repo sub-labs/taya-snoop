@@ -6,9 +6,9 @@ use crate::{
     abi::{erc20::ERC20, factory::FACTORY},
     chains::Chain,
     configs::Config,
-    db::models::{
-        factory::PairCreated,
-        pair::{Burn, Mint, Swap, Sync, Transfer},
+    db::models::factory::PairCreated,
+    handlers::{
+        burn::Burn, mint::Mint, swap::Swap, sync::Sync, transfer::Transfer,
     },
 };
 use alloy::{
@@ -77,7 +77,7 @@ impl Rpc {
         pairs: &[String],
         first_block: u64,
         last_block: u64,
-    ) -> (Vec<Log>, Vec<Log>, Vec<Log>, Vec<Log>, Vec<Log>) {
+    ) -> Vec<Log> {
         let address_pairs: Vec<Address> = pairs
             .iter()
             .map(|pair| Address::from_str(pair).unwrap())
@@ -95,41 +95,10 @@ impl Rpc {
                 Transfer::SIGNATURE,
             ]);
 
-        let logs = self
-            .client
+        self.client
             .get_logs(&filter)
             .await
-            .expect("unable to get logs from RPC");
-
-        let mut mint_logs: Vec<Log> = vec![];
-        let mut burn_logs: Vec<Log> = vec![];
-        let mut swap_logs: Vec<Log> = vec![];
-        let mut sync_logs: Vec<Log> = vec![];
-        let mut transfer_logs: Vec<Log> = vec![];
-
-        for log in logs {
-            match log.topic0() {
-                Some(topic_raw) => {
-                    let topic = topic_raw.to_string();
-
-                    if topic == Mint::SIGNATURE_HASH.to_string() {
-                        mint_logs.push(log);
-                    } else if topic == Burn::SIGNATURE_HASH.to_string() {
-                        burn_logs.push(log)
-                    } else if topic == Swap::SIGNATURE_HASH.to_string() {
-                        swap_logs.push(log)
-                    } else if topic == Sync::SIGNATURE_HASH.to_string() {
-                        sync_logs.push(log);
-                    } else if topic == Transfer::SIGNATURE_HASH.to_string()
-                    {
-                        transfer_logs.push(log);
-                    }
-                }
-                None => continue,
-            }
-        }
-
-        (mint_logs, burn_logs, swap_logs, sync_logs, transfer_logs)
+            .expect("unable to get logs from RPC")
     }
 
     pub async fn get_token_information(

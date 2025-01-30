@@ -2,7 +2,7 @@ use alloy::primitives::{Log, LogData};
 use bigdecimal::{BigDecimal, Zero};
 use serde::{Deserialize, Serialize};
 
-use super::pair::Mint;
+use crate::handlers::mint::Mint;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseMint {
@@ -12,11 +12,11 @@ pub struct DatabaseMint {
     pub pair: String,
     pub to: String,
     pub liquidity: BigDecimal,
-    pub sender: Option<String>,
-    pub amount0: Option<BigDecimal>,
-    pub amount1: Option<BigDecimal>,
-    pub log_index: Option<u64>,
-    pub amount_usd: Option<BigDecimal>,
+    pub sender: String,
+    pub amount0: BigDecimal,
+    pub amount1: BigDecimal,
+    pub log_index: u64,
+    pub amount_usd: BigDecimal,
     pub fee_to: Option<String>,
     pub fee_liquidity: Option<BigDecimal>,
 }
@@ -40,13 +40,13 @@ impl DatabaseMint {
             // TODO: fix 'to' and 'liquidity'
             to: "".to_owned(),
             liquidity: BigDecimal::zero(),
-            sender: Some(event.sender.to_string()),
+            sender: event.sender.to_string(),
             // TODO: fix amounts
-            amount0: Some(BigDecimal::zero()),
-            amount1: Some(BigDecimal::zero()),
-            log_index: log.log_index,
+            amount0: BigDecimal::zero(),
+            amount1: BigDecimal::zero(),
+            log_index: log.log_index.unwrap(),
             // TODO: fix amount usd and fees
-            amount_usd: Some(BigDecimal::zero()),
+            amount_usd: BigDecimal::zero(),
             fee_to: Some("".to_owned()),
             fee_liquidity: Some(BigDecimal::zero()),
         }

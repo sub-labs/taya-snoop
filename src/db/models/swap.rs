@@ -2,7 +2,7 @@ use alloy::primitives::{Log, LogData};
 use bigdecimal::{BigDecimal, Zero};
 use serde::{Deserialize, Serialize};
 
-use super::pair::Swap;
+use crate::handlers::swap::Swap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseSwap {

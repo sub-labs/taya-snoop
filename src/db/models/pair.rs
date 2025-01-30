@@ -1,23 +1,8 @@
-use alloy::{primitives::Log, sol};
+use alloy::primitives::Log;
 use bigdecimal::{BigDecimal, Zero};
 use serde::{Deserialize, Serialize};
 
 use super::factory::PairCreated;
-
-sol! {
-    event Mint(address indexed sender, uint amount0, uint amount1);
-    event Burn(address indexed sender, uint amount0, uint amount1, address indexed to);
-    event Swap(
-        address indexed sender,
-        uint amount0In,
-        uint amount1In,
-        uint amount0Out,
-        uint amount1Out,
-        address indexed to
-    );
-    event Sync(uint112 reserve0, uint112 reserve1);
-    event Transfer(address indexed,address indexed,uint256);
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabasePair {

@@ -4,8 +4,9 @@ use crate::chains::Chain;
 
 use log::*;
 use models::{
-    bundle::DatabaseBundle, factory::DatabaseFactory, pair::DatabasePair,
-    sync_state::DatabaseSyncState, token::DatabaseToken,
+    bundle::DatabaseBundle, burn::DatabaseBurn, factory::DatabaseFactory,
+    mint::DatabaseMint, pair::DatabasePair, sync_state::DatabaseSyncState,
+    token::DatabaseToken, transaction::DatabaseTransaction,
 };
 use mongodb::{
     bson::doc,
@@ -153,6 +154,41 @@ impl Database {
             .unwrap()
     }
 
+    pub async fn get_transaction(
+        &self,
+        transaction_hash: String,
+    ) -> Option<DatabaseTransaction> {
+        self.db
+            .collection::<DatabaseTransaction>(
+                DatabaseKeys::Transactions.as_str(),
+            )
+            .find_one(doc! { "id": { "$eq": transaction_hash}})
+            .await
+            .unwrap()
+    }
+
+    pub async fn get_mint(
+        &self,
+        mint_id: &String,
+    ) -> Option<DatabaseMint> {
+        self.db
+            .collection::<DatabaseMint>(DatabaseKeys::Mints.as_str())
+            .find_one(doc! { "id": { "$eq": mint_id}})
+            .await
+            .unwrap()
+    }
+
+    pub async fn get_burn(
+        &self,
+        burn_id: &String,
+    ) -> Option<DatabaseBurn> {
+        self.db
+            .collection::<DatabaseBurn>(DatabaseKeys::Burns.as_str())
+            .find_one(doc! { "id": { "$eq": burn_id}})
+            .await
+            .unwrap()
+    }
+
     pub async fn get_bundle(&self) -> DatabaseBundle {
         let bundle_key = DatabaseKeys::Bundle.as_str();
 
@@ -241,6 +277,32 @@ impl Database {
 
         self.db
             .collection::<DatabasePair>(DatabaseKeys::Pairs.as_str())
+            .update_one(filter, doc! { "$set": doc })
+            .upsert(true)
+            .await
+            .unwrap();
+    }
+
+    pub async fn update_mint(&self, mint: &DatabaseMint) {
+        let filter = doc! { "id": mint.id.clone() };
+
+        let doc = mongodb::bson::to_document(mint).unwrap();
+
+        self.db
+            .collection::<DatabaseMint>(DatabaseKeys::Mints.as_str())
+            .update_one(filter, doc! { "$set": doc })
+            .upsert(true)
+            .await
+            .unwrap();
+    }
+
+    pub async fn update_burn(&self, burn: &DatabaseBurn) {
+        let filter = doc! { "id": burn.id.clone() };
+
+        let doc = mongodb::bson::to_document(burn).unwrap();
+
+        self.db
+            .collection::<DatabaseMint>(DatabaseKeys::Burns.as_str())
             .update_one(filter, doc! { "$set": doc })
             .upsert(true)
             .await
