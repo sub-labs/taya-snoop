@@ -4,11 +4,10 @@ services:
     container_name: mongo
     restart: always
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo mongo:27017/test --quiet
-      interval: 10s
+      test: echo 'db.runCommand("ping").ok' | mongo mongodb://root:${DATABASE_PASSWORD}@localhost:27017 --quiet
+      interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 40s
     ports:
       - "27017:27017"
     environment:
