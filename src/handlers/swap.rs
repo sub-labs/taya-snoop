@@ -1,8 +1,8 @@
 use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
 
-use crate::db::Database;
+use crate::{db::Database, utils::format::parse_uint256};
 
-use super::utils::{convert_token_to_decimal, parse_uint256};
+use super::utils::convert_token_to_decimal;
 
 sol! {
     event Swap(

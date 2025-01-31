@@ -1,11 +1,13 @@
 use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
 use fastnum::udec256;
 
-use crate::{configs::Config, db::Database, rpc::Rpc};
+use crate::{
+    configs::Config, db::Database, rpc::Rpc, utils::format::parse_uint112,
+};
 
 use super::utils::{
     convert_token_to_decimal, find_eth_per_token, get_eth_price_usd,
-    get_tracked_liquidity_usd, parse_uint112,
+    get_tracked_liquidity_usd,
 };
 
 sol! {

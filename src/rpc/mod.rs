@@ -9,8 +9,9 @@ use crate::{
     configs::Config,
     handlers::{
         burn::Burn, mint::Mint, pairs::PairCreated, swap::Swap,
-        sync::Sync, transfer::Transfer, utils::parse_uint256,
+        sync::Sync, transfer::Transfer,
     },
+    utils::format::parse_uint256,
 };
 use alloy::{
     eips::BlockNumberOrTag,

@@ -1,10 +1,10 @@
 use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
 use fastnum::u256;
 
-use crate::db::Database;
+use crate::{db::Database, utils::format::parse_uint256};
 
 use super::utils::{
-    convert_token_to_decimal, parse_uint256, update_factory_day_data,
+    convert_token_to_decimal, update_factory_day_data,
     update_pair_day_data, update_pair_hour_data, update_token_day_data,
 };
 
