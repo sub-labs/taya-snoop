@@ -15,7 +15,7 @@ services:
       test: >
         CMD-SHELL mongo 
           --username root 
-          --password example 
+          --password ${DATABASE_PASSWORD} 
           --authenticationDatabase admin 
           --eval 'db.runCommand({ ping: 1 })'
           --quiet 
