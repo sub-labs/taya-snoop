@@ -12,10 +12,14 @@ services:
     volumes:
       - ./data/mongo/:/data/db
     healthcheck:
-      test: [
-        "CMD-SHELL",
-        "echo 'db.runCommand({ ping: 1 })' | mongo mongodb://root:${DATABASE_PASSWORD}@localhost:27017/admin?authSource=admin --quiet || exit 1"
-      ]
+      test: >
+        CMD-SHELL mongo 
+          --username root 
+          --password example 
+          --authenticationDatabase admin 
+          --eval 'db.runCommand({ ping: 1 })'
+          --quiet 
+        || exit 1
       interval: 10s
       timeout: 5s
       retries: 3
