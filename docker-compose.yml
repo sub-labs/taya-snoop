@@ -11,6 +11,7 @@ services:
     env_file: "./.env"
     volumes:
       - ./data/mongo/:/data/db
+      
   postgres:
     image: postgres:15
     container_name: postgres
@@ -28,7 +29,7 @@ services:
     container_name: hasura-mongo-connector
     restart: always
     depends_on:
-      - mongodb
+      - mongo
     ports:
       - "8100:8100"
     environment:
