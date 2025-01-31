@@ -1,22 +1,18 @@
-use alloy::{
-    primitives::{utils::format_units, U256},
-    rpc::types::Log,
-    sol,
-    sol_types::SolEvent,
-};
-use bigdecimal::{BigDecimal, FromPrimitive, Zero};
+use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
+use fastnum::udec256;
 
 use crate::{configs::Config, db::Database, rpc::Rpc};
 
 use super::utils::{
-    find_eth_per_token, get_eth_price_usd, get_tracked_liquidity_usd,
+    convert_token_to_decimal, find_eth_per_token, get_eth_price_usd,
+    get_tracked_liquidity_usd, parse_uint112,
 };
 
 sol! {
     event Sync(uint112 reserve0, uint112 reserve1);
 }
 
-pub async fn handle_syncs(
+pub async fn handle_sync(
     log: Log,
     db: &Database,
     rpc: &Rpc,
@@ -35,37 +31,32 @@ pub async fn handle_syncs(
     // Load the factory
     let mut factory = db.get_factory().await;
 
-    factory.total_liquidity_eth -= pair.tracked_reserve_eth.clone();
+    factory.total_liquidity_eth =
+        factory.total_liquidity_eth.min(pair.tracked_reserve_eth);
 
-    token0.total_liquidity -= pair.reserve0;
-    token1.total_liquidity -= pair.reserve1;
+    token0.total_liquidity = token0.total_liquidity.min(pair.reserve0);
+    token1.total_liquidity = token1.total_liquidity.min(pair.reserve1);
 
-    pair.reserve0 = BigDecimal::from_f64(
-        format_units(U256::from(event.reserve0), token0.decimals as u8)
-            .unwrap()
-            .parse::<f64>()
-            .unwrap(),
-    )
-    .unwrap();
+    pair.reserve0 = convert_token_to_decimal(
+        &parse_uint112(event.reserve0),
+        &token0.decimals,
+    );
 
-    pair.reserve1 = BigDecimal::from_f64(
-        format_units(U256::from(event.reserve1), token0.decimals as u8)
-            .unwrap()
-            .parse::<f64>()
-            .unwrap(),
-    )
-    .unwrap();
+    pair.reserve1 = convert_token_to_decimal(
+        &parse_uint112(event.reserve1),
+        &token1.decimals,
+    );
 
-    if pair.reserve0.ne(&BigDecimal::zero()) {
-        pair.token0_price = pair.reserve0.clone() / pair.reserve1.clone()
+    if pair.reserve0.ne(&udec256!(0)) {
+        pair.token0_price = pair.reserve0.div(pair.reserve1)
     } else {
-        pair.token0_price = BigDecimal::zero()
+        pair.token0_price = udec256!(0)
     }
 
-    if pair.reserve1.ne(&BigDecimal::zero()) {
-        pair.token1_price = pair.reserve1.clone() / pair.reserve0.clone()
+    if pair.reserve1.ne(&udec256!(0)) {
+        pair.token1_price = pair.reserve1.div(pair.reserve0)
     } else {
-        pair.token1_price = BigDecimal::zero()
+        pair.token1_price = udec256!(0)
     }
 
     db.update_pair(&pair).await;
@@ -85,31 +76,36 @@ pub async fn handle_syncs(
     db.update_token(&token0).await;
     db.update_token(&token1).await;
 
-    let mut tracked_liquidity_eth = BigDecimal::zero();
-    if bundle.eth_price.ne(&BigDecimal::zero()) {
+    let mut tracked_liquidity_eth = udec256!(0);
+
+    if bundle.eth_price.ne(&udec256!(0)) {
         tracked_liquidity_eth = get_tracked_liquidity_usd(
-            pair.reserve0.clone(),
+            pair.reserve0,
             &token0,
-            pair.reserve1.clone(),
+            pair.reserve1,
             &token1,
             db,
         )
         .await
     }
 
-    pair.tracked_reserve_eth = tracked_liquidity_eth.clone();
-    pair.reserve_eth = (pair.reserve0.clone()
-        * token0.derived_eth.clone())
-        + (pair.reserve1.clone() * token1.derived_eth.clone());
+    pair.tracked_reserve_eth = tracked_liquidity_eth;
+    pair.reserve_eth = pair
+        .reserve0
+        .mul(token0.derived_eth)
+        .add(pair.reserve1.mul(token1.derived_eth));
 
-    pair.reserve_usd = pair.reserve_eth.clone() * bundle.eth_price.clone();
+    pair.reserve_usd = pair.reserve_eth.mul(bundle.eth_price);
 
-    factory.total_liquidity_eth += tracked_liquidity_eth;
+    factory.total_liquidity_eth =
+        factory.total_liquidity_eth.add(tracked_liquidity_eth);
+
     factory.total_liquidity_usd =
-        factory.total_liquidity_eth.clone() * bundle.eth_price;
+        factory.total_liquidity_eth.mul(bundle.eth_price);
 
-    token0.total_liquidity += pair.reserve0.clone();
-    token1.total_liquidity += pair.reserve1.clone();
+    token0.total_liquidity = token0.total_liquidity.add(pair.reserve0);
+
+    token1.total_liquidity = token1.total_liquidity.mul(pair.reserve1);
 
     db.update_pair(&pair).await;
     db.update_factory(&factory).await;

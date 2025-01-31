@@ -5,11 +5,11 @@ use taya_snoop::{
     configs::Config,
     db::Database,
     handlers::{
-        burn::{handle_burns, Burn},
+        burn::{handle_burn, Burn},
         mint::{handle_mint, Mint},
         pairs::handle_pairs,
-        swap::{handle_swaps, Swap},
-        sync::{handle_syncs, Sync},
+        swap::{handle_swap, Swap},
+        sync::{handle_sync, Sync},
         transfer::{handle_transfer, Transfer},
     },
     rpc::Rpc,
@@ -106,15 +106,15 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
                             count_mints += 1;
                         } else if topic == Burn::SIGNATURE_HASH.to_string()
                         {
-                            handle_burns(log, db).await;
+                            handle_burn(log, db).await;
                             count_burns += 1;
                         } else if topic == Swap::SIGNATURE_HASH.to_string()
                         {
-                            handle_swaps(log, db).await;
+                            handle_swap(log, db).await;
                             count_swaps += 1;
                         } else if topic == Sync::SIGNATURE_HASH.to_string()
                         {
-                            handle_syncs(log, db, rpc, config).await;
+                            handle_sync(log, db, rpc, config).await;
                             count_syncs += 1;
                         } else if topic
                             == Transfer::SIGNATURE_HASH.to_string()

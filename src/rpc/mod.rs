@@ -1,14 +1,15 @@
 use std::str::FromStr;
 
+use fastnum::{u256, U256};
 use log::info;
 
 use crate::{
     abi::{erc20::ERC20, factory::FACTORY},
     chains::Chain,
     configs::Config,
-    db::models::factory::PairCreated,
     handlers::{
-        burn::Burn, mint::Mint, swap::Swap, sync::Sync, transfer::Transfer,
+        burn::Burn, mint::Mint, pairs::PairCreated, swap::Swap,
+        sync::Sync, transfer::Transfer, utils::parse_uint256,
     },
 };
 use alloy::{
@@ -104,7 +105,7 @@ impl Rpc {
     pub async fn get_token_information(
         &self,
         token: String,
-    ) -> (String, String, String, i64) {
+    ) -> (String, String, U256, U256) {
         let token =
             ERC20::new(Address::from_str(&token).unwrap(), &self.client);
 
@@ -118,17 +119,17 @@ impl Rpc {
             Err(_) => "UNKNOWN".to_owned(),
         };
 
-        let total_supply = match token.totalSupply().call().await {
-            Ok(total_supply) => total_supply._0.to_string(),
-            Err(_) => "0".to_owned(),
+        let total_supply: U256 = match token.totalSupply().call().await {
+            Ok(total_supply) => parse_uint256(total_supply._0),
+            Err(_) => u256!(0),
         };
 
-        let decimals = match token.decimals().call().await {
-            Ok(decimals) => decimals._0,
-            Err(_) => 0,
+        let decimals: U256 = match token.decimals().call().await {
+            Ok(decimals) => U256::from(decimals._0),
+            Err(_) => u256!(0),
         };
 
-        (name, symbol, total_supply, decimals as i64)
+        (name, symbol, total_supply, decimals)
     }
 
     pub async fn get_pair_for_tokens(

@@ -1,15 +1,18 @@
-use alloy::{rpc::types::Log, sol_types::SolEvent};
+use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
+use fastnum::U256;
 use log::info;
 
 use crate::{
     db::{
-        models::{
-            factory::PairCreated, pair::DatabasePair, token::DatabaseToken,
-        },
+        models::{pair::DatabasePair, token::DatabaseToken},
         Database,
     },
     rpc::Rpc,
 };
+
+sol! {
+    event PairCreated(address indexed token0, address indexed token1, address pair, uint);
+}
 
 pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
     let mut count_tokens = 0;
@@ -29,6 +32,9 @@ pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
 
         // Load the token0
         let token0 = db.get_token(event.token0.to_string()).await;
+        // Load the token1
+        let token1 = db.get_token(event.token1.to_string()).await;
+
         // Create if it doesn't exists
         if token0.is_none() {
             let (name, symbol, total_supply, decimals) =
@@ -46,8 +52,6 @@ pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
             count_tokens += 1;
         }
 
-        // Load the token1
-        let token1 = db.get_token(event.token1.to_string()).await;
         // Create if it doesn't exists
         if token1.is_none() {
             let (name, symbol, total_supply, decimals) =
@@ -68,8 +72,8 @@ pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
         // Create the pair data
         let db_pair = DatabasePair::new(
             event,
-            log.block_timestamp.unwrap_or(0) as i64,
-            log.block_number.unwrap_or(0) as i64,
+            U256::from(log.block_timestamp.unwrap_or(0)),
+            U256::from(log.block_number.unwrap_or(0)),
         );
 
         // Store the factory and the new pair

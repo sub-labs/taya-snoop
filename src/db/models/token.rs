@@ -1,4 +1,4 @@
-use bigdecimal::{BigDecimal, Zero};
+use fastnum::{u256, udec256, U256, UD256};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -6,14 +6,14 @@ pub struct DatabaseToken {
     pub id: String,
     pub symbol: String,
     pub name: String,
-    pub decimals: i64,
-    pub total_supply: String,
-    pub trade_volume: BigDecimal,
-    pub trade_volume_usd: BigDecimal,
-    pub untracked_volume_usd: BigDecimal,
-    pub tx_count: i64,
-    pub total_liquidity: BigDecimal,
-    pub derived_eth: BigDecimal,
+    pub decimals: U256,
+    pub total_supply: U256,
+    pub trade_volume: UD256,
+    pub trade_volume_usd: UD256,
+    pub untracked_volume_usd: UD256,
+    pub tx_count: U256,
+    pub total_liquidity: UD256,
+    pub derived_eth: UD256,
 }
 
 impl DatabaseToken {
@@ -21,8 +21,8 @@ impl DatabaseToken {
         address: String,
         symbol: String,
         name: String,
-        decimals: i64,
-        total_supply: String,
+        decimals: U256,
+        total_supply: U256,
     ) -> Self {
         Self {
             id: address.to_lowercase(),
@@ -30,12 +30,12 @@ impl DatabaseToken {
             name,
             decimals,
             total_supply,
-            trade_volume: BigDecimal::zero(),
-            trade_volume_usd: BigDecimal::zero(),
-            untracked_volume_usd: BigDecimal::zero(),
-            tx_count: 0,
-            total_liquidity: BigDecimal::zero(),
-            derived_eth: BigDecimal::zero(),
+            trade_volume: udec256!(0),
+            trade_volume_usd: udec256!(0),
+            untracked_volume_usd: udec256!(0),
+            tx_count: u256!(0),
+            total_liquidity: udec256!(0),
+            derived_eth: udec256!(0),
         }
     }
 }

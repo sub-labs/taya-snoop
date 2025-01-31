@@ -1,13 +1,16 @@
-use alloy::{primitives::Address, rpc::types::Log};
-use bigdecimal::{BigDecimal, FromPrimitive, One, Zero};
-
 use crate::{
     configs::Config,
     db::{models::token::DatabaseToken, Database},
     rpc::Rpc,
 };
+use alloy::{primitives::Address, rpc::types::Log};
+use fastnum::{decimal::Context, u256, udec256, U256, UD256};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::str::FromStr;
 
-pub const MINIMUM_LIQUIDITY_THRESHOLD_ETH: f64 = 2.0;
+pub const MINIMUM_USD_THRESHOLD_NEW_PAIRS: UD256 = udec256!(400000);
+
+pub const MINIMUM_LIQUIDITY_THRESHOLD_ETH: UD256 = udec256!(2);
 
 pub const WHITELIST_TOKENS: [&str; 4] = [
     "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", // WETH
@@ -25,51 +28,46 @@ pub const USDC_WETH_PAIR: &str =
 pub const USDT_WETH_PAIR: &str =
     "0x0d4a11d5eeaac28ec3f61d100daf4d40471f1852";
 
-pub async fn get_eth_price_usd(db: &Database) -> BigDecimal {
+pub async fn get_eth_price_usd(db: &Database) -> UD256 {
     let dai_pair = db.get_pair(DAI_WETH_PAIR.to_owned()).await;
     let usdc_pair = db.get_pair(USDC_WETH_PAIR.to_owned()).await;
     let usdt_pair = db.get_pair(USDT_WETH_PAIR.to_owned()).await;
 
     match (dai_pair, usdc_pair, usdt_pair) {
         (Some(dai), Some(usdc), Some(usdt)) => {
-            let total_liquidity_eth = dai.reserve1.clone()
-                + usdc.reserve1.clone()
-                + usdt.reserve0.clone();
+            let total_liquidity_eth =
+                dai.reserve1.add(usdt.reserve0).add(usdc.reserve1);
 
-            if total_liquidity_eth.eq(&BigDecimal::zero()) {
-                return BigDecimal::zero();
+            if total_liquidity_eth.eq(&udec256!(0)) {
+                return udec256!(0);
             }
 
-            let dai_weight =
-                dai.reserve1.clone() / total_liquidity_eth.clone();
-            let usdc_weight =
-                usdc.reserve1.clone() / total_liquidity_eth.clone();
-            let usdt_weight =
-                usdt.reserve0.clone() / total_liquidity_eth.clone();
+            let dai_weight = dai.reserve1.div(total_liquidity_eth);
+            let usdc_weight = usdc.reserve1.div(total_liquidity_eth);
+            let usdt_weight = usdt.reserve0.div(total_liquidity_eth);
 
-            (dai.token0_price * dai_weight)
-                + (usdc.token0_price * usdc_weight)
-                + (usdt.token1_price * usdt_weight)
+            dai.token0_price
+                .mul(dai_weight)
+                .add(usdc.token0_price.mul(usdc_weight))
+                .add(usdt.token1_price.mul(usdt_weight))
         }
         (Some(dai), Some(usdc), None) => {
-            let total_liquidity_eth =
-                dai.reserve1.clone() + usdc.reserve1.clone();
+            let total_liquidity_eth = dai.reserve1.add(usdc.reserve1);
 
-            if total_liquidity_eth.eq(&BigDecimal::zero()) {
-                return BigDecimal::zero();
+            if total_liquidity_eth.eq(&udec256!(0)) {
+                return udec256!(0);
             }
 
-            let dai_weight =
-                dai.reserve1.clone() / total_liquidity_eth.clone();
-            let usdc_weight =
-                usdc.reserve1.clone() / total_liquidity_eth.clone();
+            let dai_weight = dai.reserve1.div(total_liquidity_eth);
+            let usdc_weight = usdc.reserve1.div(total_liquidity_eth);
 
-            (dai.token0_price * dai_weight)
-                + (usdc.token0_price * usdc_weight)
+            dai.token0_price
+                .mul(dai_weight)
+                .add(usdc.token0_price.mul(usdc_weight))
         }
         (_, Some(usdc), _) => usdc.token0_price,
         // No pairs
-        _ => BigDecimal::zero(),
+        _ => udec256!(0),
     }
 }
 
@@ -78,9 +76,9 @@ pub async fn find_eth_per_token(
     rpc: &Rpc,
     db: &Database,
     config: &Config,
-) -> BigDecimal {
+) -> UD256 {
     if token.id == WETH_ADDRESS {
-        return BigDecimal::one();
+        return udec256!(0);
     }
 
     // Loop through a set of whitelisted tokens to check if there is any pair for this token.
@@ -100,12 +98,9 @@ pub async fn find_eth_per_token(
             }
 
             let pair = pair.unwrap();
-            let minimum_liquidity =
-                BigDecimal::from_f64(MINIMUM_LIQUIDITY_THRESHOLD_ETH)
-                    .unwrap();
 
             if pair.token0 == token.id
-                && pair.reserve_eth.ge(&minimum_liquidity)
+                && pair.reserve_eth.ge(&MINIMUM_LIQUIDITY_THRESHOLD_ETH)
             {
                 let token0 = db.get_token(pair.token0).await;
                 if token0.is_none() {
@@ -114,10 +109,10 @@ pub async fn find_eth_per_token(
 
                 let token0 = token0.unwrap();
 
-                return pair.token0_price * token0.derived_eth;
+                return pair.token0_price.mul(token0.derived_eth);
             }
             if pair.token1 == token.id
-                && pair.reserve_eth.ge(&minimum_liquidity)
+                && pair.reserve_eth.ge(&MINIMUM_LIQUIDITY_THRESHOLD_ETH)
             {
                 let token1 = db.get_token(pair.token1).await;
                 if token1.is_none() {
@@ -126,47 +121,45 @@ pub async fn find_eth_per_token(
 
                 let token1 = token1.unwrap();
 
-                return pair.token1_price * token1.derived_eth;
+                return pair.token1_price.mul(token1.derived_eth);
             }
         }
     }
 
-    BigDecimal::zero()
+    udec256!(0)
 }
 
 pub async fn get_tracked_liquidity_usd(
-    token_amount0: BigDecimal,
+    token_amount0: UD256,
     token0: &DatabaseToken,
-    token_amount1: BigDecimal,
+    token_amount1: UD256,
     token1: &DatabaseToken,
     db: &Database,
-) -> BigDecimal {
+) -> UD256 {
     let bundle = db.get_bundle().await;
 
-    let price0 = token0.derived_eth.clone() * bundle.eth_price.clone();
-    let price1 = token1.derived_eth.clone() * bundle.eth_price.clone();
+    let price0 = token0.derived_eth.mul(bundle.eth_price);
+    let price1 = token1.derived_eth.mul(bundle.eth_price);
 
     if WHITELIST_TOKENS.contains(&token0.id.as_str())
         && WHITELIST_TOKENS.contains(&token1.id.as_str())
     {
-        return (token_amount0 * price0) + (token_amount1 * price1);
+        return token_amount0.mul(price0).add(token_amount1.mul(price1));
     }
 
     if WHITELIST_TOKENS.contains(&token0.id.as_str())
         && !WHITELIST_TOKENS.contains(&token1.id.as_str())
     {
-        return (token_amount0 * price0)
-            * BigDecimal::from_usize(2).unwrap();
+        return token_amount0.mul(price0).mul(udec256!(2));
     }
 
     if !WHITELIST_TOKENS.contains(&token0.id.as_str())
         && !WHITELIST_TOKENS.contains(&token1.id.as_str())
     {
-        return (token_amount1 * price1)
-            * BigDecimal::from_usize(2).unwrap();
+        return token_amount1.mul(price1).mul(udec256!(2));
     }
 
-    BigDecimal::zero()
+    udec256!(0)
 }
 
 pub async fn update_pair_day_data(log: &Log) {}
@@ -176,3 +169,60 @@ pub async fn update_pair_hour_data(log: &Log) {}
 pub async fn update_factory_day_data(log: &Log) {}
 
 pub async fn update_token_day_data(token: &DatabaseToken, log: &Log) {}
+
+fn exponent_to_bigdecimal(decimals: &U256) -> UD256 {
+    let mut bd = u256!(1);
+
+    let mut i = u256!(0);
+    while i < *decimals {
+        bd = bd.mul(u256!(10));
+        i += &u256!(1);
+    }
+
+    UD256::from_str(&bd.to_string(), Context::default()).unwrap()
+}
+
+pub fn convert_token_to_decimal(
+    token_amount: &U256,
+    exchange_decimals: &U256,
+) -> UD256 {
+    let token_amount_decimal =
+        UD256::from_str(&token_amount.to_string(), Context::default())
+            .unwrap();
+
+    if exchange_decimals.is_zero() {
+        return token_amount_decimal;
+    } else {
+        let divisor = exponent_to_bigdecimal(exchange_decimals);
+        token_amount_decimal / divisor
+    }
+}
+
+pub fn parse_uint256(u: alloy::primitives::Uint<256, 4>) -> fastnum::U256 {
+    let bytes: [u8; 32] = u.to_be_bytes();
+
+    fastnum::U256::from_be_slice(&bytes).unwrap()
+}
+
+pub fn parse_uint112(u: alloy::primitives::Uint<112, 2>) -> fastnum::U256 {
+    let bytes: [u8; 32] = u.to_be_bytes();
+
+    fastnum::U256::from_be_slice(&bytes).unwrap()
+}
+
+/// Serialize `U256` as a string
+pub fn serialize<S>(value: &U256, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&value.to_string())
+}
+
+/// Deserialize `U256` from a string
+pub fn deserialize<'de, D>(deserializer: D) -> Result<U256, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    s.parse::<U256>().map_err(serde::de::Error::custom)
+}

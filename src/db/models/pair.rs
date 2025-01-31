@@ -1,30 +1,30 @@
 use alloy::primitives::Log;
-use bigdecimal::{BigDecimal, Zero};
+use fastnum::{u256, udec256, U256, UD256};
 use serde::{Deserialize, Serialize};
 
-use super::factory::PairCreated;
+use crate::handlers::pairs::PairCreated;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabasePair {
     pub id: String,
     pub token0: String,
     pub token1: String,
-    pub reserve0: BigDecimal,
-    pub reserve1: BigDecimal,
-    pub total_supply: BigDecimal,
-    pub reserve_eth: BigDecimal,
-    pub reserve_usd: BigDecimal,
-    pub tracked_reserve_eth: BigDecimal,
-    pub token0_price: BigDecimal,
-    pub token1_price: BigDecimal,
-    pub volume_token0: BigDecimal,
-    pub volume_token1: BigDecimal,
-    pub volume_usd: BigDecimal,
-    pub untracked_volume_usd: BigDecimal,
-    pub tx_count: i64,
-    pub created_at_timestamp: i64,
-    pub created_at_block_number: i64,
-    pub liquidity_provider_count: i64,
+    pub reserve0: UD256,
+    pub reserve1: UD256,
+    pub total_supply: UD256,
+    pub reserve_eth: UD256,
+    pub reserve_usd: UD256,
+    pub tracked_reserve_eth: UD256,
+    pub token0_price: UD256,
+    pub token1_price: UD256,
+    pub volume_token0: UD256,
+    pub volume_token1: UD256,
+    pub volume_usd: UD256,
+    pub untracked_volume_usd: UD256,
+    pub tx_count: U256,
+    pub created_at_timestamp: U256,
+    pub created_at_block_number: U256,
+    pub liquidity_provider_count: U256,
     // TODO: find a way to make the relationship
     // pub pair_hour_data: Vec<String>,
     // pub mints: Vec<String>,
@@ -35,29 +35,29 @@ pub struct DatabasePair {
 impl DatabasePair {
     pub fn new(
         event: Log<PairCreated>,
-        created_at_timestamp: i64,
-        created_at_block_number: i64,
+        created_at_timestamp: U256,
+        created_at_block_number: U256,
     ) -> Self {
         Self {
             id: event.pair.to_string().to_lowercase(),
             token0: event.token0.to_string(),
             token1: event.token1.to_string(),
-            reserve0: BigDecimal::zero(),
-            reserve1: BigDecimal::zero(),
-            total_supply: BigDecimal::zero(),
-            reserve_eth: BigDecimal::zero(),
-            reserve_usd: BigDecimal::zero(),
-            tracked_reserve_eth: BigDecimal::zero(),
-            token0_price: BigDecimal::zero(),
-            token1_price: BigDecimal::zero(),
-            volume_token0: BigDecimal::zero(),
-            volume_token1: BigDecimal::zero(),
-            volume_usd: BigDecimal::zero(),
-            untracked_volume_usd: BigDecimal::zero(),
-            tx_count: 0,
+            reserve0: udec256!(0),
+            reserve1: udec256!(0),
+            total_supply: udec256!(0),
+            reserve_eth: udec256!(0),
+            reserve_usd: udec256!(0),
+            tracked_reserve_eth: udec256!(0),
+            token0_price: udec256!(0),
+            token1_price: udec256!(0),
+            volume_token0: udec256!(0),
+            volume_token1: udec256!(0),
+            volume_usd: udec256!(0),
+            untracked_volume_usd: udec256!(0),
+            tx_count: u256!(0),
             created_at_timestamp,
             created_at_block_number,
-            liquidity_provider_count: 0,
+            liquidity_provider_count: u256!(0),
         }
     }
 }

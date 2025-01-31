@@ -1,23 +1,18 @@
-use alloy::sol;
-use bigdecimal::{BigDecimal, Zero};
+use fastnum::{u256, udec256, U256, UD256};
 use serde::{Deserialize, Serialize};
 
 use crate::db::DatabaseKeys;
-
-sol! {
-    event PairCreated(address indexed token0, address indexed token1, address pair, uint);
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseFactory {
     pub id: String,
     pub pair_count: i32,
-    pub total_volume_usd: BigDecimal,
-    pub total_volume_eth: BigDecimal,
-    pub untracked_volume_usd: BigDecimal,
-    pub total_liquidity_usd: BigDecimal,
-    pub total_liquidity_eth: BigDecimal,
-    pub tx_count: i64,
+    pub total_volume_usd: UD256,
+    pub total_volume_eth: UD256,
+    pub untracked_volume_usd: UD256,
+    pub total_liquidity_usd: UD256,
+    pub total_liquidity_eth: UD256,
+    pub tx_count: U256,
     pub pairs: Vec<String>,
 }
 
@@ -32,12 +27,12 @@ impl DatabaseFactory {
         Self {
             id: DatabaseKeys::Factory.as_str().to_owned(),
             pair_count: 0,
-            total_volume_usd: BigDecimal::zero(),
-            total_volume_eth: BigDecimal::zero(),
-            untracked_volume_usd: BigDecimal::zero(),
-            total_liquidity_usd: BigDecimal::zero(),
-            total_liquidity_eth: BigDecimal::zero(),
-            tx_count: 0,
+            total_volume_usd: udec256!(0),
+            total_volume_eth: udec256!(0),
+            untracked_volume_usd: udec256!(0),
+            total_liquidity_usd: udec256!(0),
+            total_liquidity_eth: udec256!(0),
+            tx_count: u256!(0),
             pairs: vec![],
         }
     }

@@ -1,16 +1,11 @@
-use alloy::{
-    primitives::{utils::format_units, U256},
-    rpc::types::Log,
-    sol,
-    sol_types::SolEvent,
-};
-use bigdecimal::{BigDecimal, FromPrimitive};
+use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
+use fastnum::{u256, U256};
 
 use crate::db::Database;
 
 use super::utils::{
-    update_factory_day_data, update_pair_day_data, update_pair_hour_data,
-    update_token_day_data,
+    convert_token_to_decimal, parse_uint256, update_factory_day_data,
+    update_pair_day_data, update_pair_hour_data, update_token_day_data,
 };
 
 sol! {
@@ -49,34 +44,28 @@ pub async fn handle_mint(log: Log, db: &Database) {
     let mut token0 = token0.unwrap();
     let mut token1 = token1.unwrap();
 
-    let token0_amount = BigDecimal::from_f64(
-        format_units(U256::from(event.amount0), token0.decimals as u8)
-            .unwrap()
-            .parse::<f64>()
-            .unwrap(),
-    )
-    .unwrap();
+    let token0_amount = convert_token_to_decimal(
+        &parse_uint256(event.amount0),
+        &token0.decimals,
+    );
 
-    let token1_amount = BigDecimal::from_f64(
-        format_units(U256::from(event.amount1), token1.decimals as u8)
-            .unwrap()
-            .parse::<f64>()
-            .unwrap(),
-    )
-    .unwrap();
+    let token1_amount = convert_token_to_decimal(
+        &parse_uint256(event.amount1),
+        &token1.decimals,
+    );
 
-    token0.tx_count += 1;
-    token1.tx_count += 1;
+    token0.tx_count = token0.tx_count.add(u256!(1));
+    token1.tx_count = token1.tx_count.add(u256!(1));
 
     let bundle = db.get_bundle().await;
 
-    let amount_total_usd = ((token1.derived_eth.clone()
-        * token1_amount.clone())
-        + (token0.derived_eth.clone() * token0_amount.clone()))
-        * bundle.eth_price;
+    let amount_total_usd = token1
+        .derived_eth
+        .mul(token1_amount)
+        .add(token0.derived_eth.mul(bundle.eth_price));
 
-    pair.tx_count += 1;
-    factory.tx_count += 1;
+    pair.tx_count = pair.tx_count.add(u256!(1));
+    factory.tx_count = factory.tx_count.add(u256!(1));
 
     db.update_token(&token0).await;
     db.update_token(&token1).await;
@@ -87,7 +76,7 @@ pub async fn handle_mint(log: Log, db: &Database) {
     mint.sender = event.sender.to_string().to_lowercase();
     mint.amount0 = token0_amount;
     mint.amount1 = token1_amount;
-    mint.log_index = log.log_index.unwrap();
+    mint.log_index = U256::from(log.log_index.unwrap());
     mint.amount_usd = amount_total_usd;
 
     db.update_mint(&mint).await;

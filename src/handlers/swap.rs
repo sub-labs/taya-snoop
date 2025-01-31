@@ -2,6 +2,8 @@ use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
 
 use crate::db::Database;
 
+use super::utils::{convert_token_to_decimal, parse_uint256};
+
 sol! {
     event Swap(
         address indexed sender,
@@ -13,25 +15,48 @@ sol! {
     );
 }
 
-pub async fn handle_swaps(log: Log, db: &Database) {
+pub async fn handle_swap(log: Log, db: &Database) {
     let event = Swap::decode_log(&log.inner, true).unwrap();
+
+    let pair = db.get_pair(event.address.to_string()).await.unwrap();
+
+    let token0 = db.get_token(pair.token0).await;
+    let token1 = db.get_token(pair.token1).await;
+
+    if token0.is_none() || token1.is_none() {
+        return;
+    }
+
+    let token0 = token0.unwrap();
+    let token1 = token1.unwrap();
+
+    let amount0_in = convert_token_to_decimal(
+        &parse_uint256(event.amount0In),
+        &token0.decimals,
+    );
+
+    let amount1_in = convert_token_to_decimal(
+        &parse_uint256(event.amount1In),
+        &token1.decimals,
+    );
+
+    let amount0_out = convert_token_to_decimal(
+        &parse_uint256(event.amount0Out),
+        &token0.decimals,
+    );
+
+    let amount1_out = convert_token_to_decimal(
+        &parse_uint256(event.amount1Out),
+        &token1.decimals,
+    );
+
+    let amount0_total = amount0_out.add(amount0_in);
+    let amount1_total = amount1_out.add(amount1_in);
 }
+
 /*
 export function handleSwap(event: Swap): void {
-    const pair = Pair.load(event.address.toHexString())!
-    const token0 = Token.load(pair.token0)
-    const token1 = Token.load(pair.token1)
-    if (token0 === null || token1 === null) {
-      return
-    }
-    const amount0In = convertTokenToDecimal(event.params.amount0In, token0.decimals)
-    const amount1In = convertTokenToDecimal(event.params.amount1In, token1.decimals)
-    const amount0Out = convertTokenToDecimal(event.params.amount0Out, token0.decimals)
-    const amount1Out = convertTokenToDecimal(event.params.amount1Out, token1.decimals)
 
-    // totals for volume updates
-    const amount0Total = amount0Out.plus(amount0In)
-    const amount1Total = amount1Out.plus(amount1In)
 
     // ETH/USD prices
     const bundle = Bundle.load('1')!
@@ -40,7 +65,7 @@ export function handleSwap(event: Swap): void {
     const derivedAmountETH = token1.derivedETH
       .times(amount1Total)
       .plus(token0.derivedETH.times(amount0Total))
-      .div(BigDecimal.fromString('2'))
+      .div(UD256.fromString('2'))
     const derivedAmountUSD = derivedAmountETH.times(bundle.ethPrice)
 
     // only accounts for volume through white listed tokens
@@ -52,7 +77,7 @@ export function handleSwap(event: Swap): void {
       pair as Pair
     )
 
-    let trackedAmountETH: BigDecimal
+    let trackedAmountETH: UD256
     if (bundle.ethPrice.equals(ZERO_BD)) {
       trackedAmountETH = ZERO_BD
     } else {
@@ -105,7 +130,7 @@ export function handleSwap(event: Swap): void {
     }
     const swaps = transaction.swaps
     const swap = new SwapEvent(
-      event.transaction.hash.toHexString().concat('-').concat(BigInt.fromI32(swaps.length).toString())
+      event.transaction.hash.toHexString().concat('-').concat(U256.fromI32(swaps.length).toString())
     )
 
     // update swap event
@@ -160,17 +185,17 @@ export function handleSwap(event: Swap): void {
 
     // swap specific updating for token0
     token0DayData.dailyVolumeToken = token0DayData.dailyVolumeToken.plus(amount0Total)
-    token0DayData.dailyVolumeETH = token0DayData.dailyVolumeETH.plus(amount0Total.times(token0.derivedETH as BigDecimal))
+    token0DayData.dailyVolumeETH = token0DayData.dailyVolumeETH.plus(amount0Total.times(token0.derivedETH as UD256))
     token0DayData.dailyVolumeUSD = token0DayData.dailyVolumeUSD.plus(
-      amount0Total.times(token0.derivedETH as BigDecimal).times(bundle.ethPrice)
+      amount0Total.times(token0.derivedETH as UD256).times(bundle.ethPrice)
     )
     token0DayData.save()
 
     // swap specific updating
     token1DayData.dailyVolumeToken = token1DayData.dailyVolumeToken.plus(amount1Total)
-    token1DayData.dailyVolumeETH = token1DayData.dailyVolumeETH.plus(amount1Total.times(token1.derivedETH as BigDecimal))
+    token1DayData.dailyVolumeETH = token1DayData.dailyVolumeETH.plus(amount1Total.times(token1.derivedETH as UD256))
     token1DayData.dailyVolumeUSD = token1DayData.dailyVolumeUSD.plus(
-      amount1Total.times(token1.derivedETH as BigDecimal).times(bundle.ethPrice)
+      amount1Total.times(token1.derivedETH as UD256).times(bundle.ethPrice)
     )
     token1DayData.save()
   }
