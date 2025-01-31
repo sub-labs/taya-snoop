@@ -1,5 +1,5 @@
 use alloy::primitives::{Log, LogData};
-use fastnum::{udec256, U256, UD256};
+use fastnum::{udec256, UD256};
 use serde::{Deserialize, Serialize};
 
 use crate::handlers::swap::Swap;
@@ -8,7 +8,7 @@ use crate::handlers::swap::Swap;
 pub struct DatabaseSwap {
     pub id: String,
     pub transaction: String,
-    pub timestamp: U256,
+    pub timestamp: i64,
     pub pair: String,
     pub sender: String,
     pub from: String,
@@ -17,7 +17,7 @@ pub struct DatabaseSwap {
     pub amount0_out: UD256,
     pub amount1_out: UD256,
     pub to: String,
-    pub log_index: U256,
+    pub log_index: i64,
     pub amount_usd: UD256,
 }
 
@@ -34,7 +34,7 @@ impl DatabaseSwap {
                 log.transaction_index.unwrap()
             ),
             transaction,
-            timestamp: U256::from(log.block_timestamp.unwrap()),
+            timestamp: log.block_timestamp.unwrap() as i64,
             pair: event.address.to_string(),
             sender: event.sender.to_string(),
             from: "".to_owned(),
@@ -43,7 +43,7 @@ impl DatabaseSwap {
             amount0_out: udec256!(0),
             amount1_out: udec256!(0),
             to: event.to.to_string(),
-            log_index: U256::from(log.log_index.unwrap()),
+            log_index: log.log_index.unwrap() as i64,
             amount_usd: udec256!(0),
         }
     }

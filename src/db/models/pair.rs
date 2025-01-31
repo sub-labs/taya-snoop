@@ -1,5 +1,5 @@
 use alloy::primitives::Log;
-use fastnum::{u256, udec256, U256, UD256};
+use fastnum::{udec256, UD256};
 use serde::{Deserialize, Serialize};
 
 use crate::handlers::pairs::PairCreated;
@@ -21,10 +21,10 @@ pub struct DatabasePair {
     pub volume_token1: UD256,
     pub volume_usd: UD256,
     pub untracked_volume_usd: UD256,
-    pub tx_count: U256,
-    pub created_at_timestamp: U256,
-    pub created_at_block_number: U256,
-    pub liquidity_provider_count: U256,
+    pub tx_count: i64,
+    pub created_at_timestamp: i64,
+    pub created_at_block_number: i64,
+    pub liquidity_provider_count: i64,
     // TODO: find a way to make the relationship
     // pub pair_hour_data: Vec<String>,
     // pub mints: Vec<String>,
@@ -35,8 +35,8 @@ pub struct DatabasePair {
 impl DatabasePair {
     pub fn new(
         event: Log<PairCreated>,
-        created_at_timestamp: U256,
-        created_at_block_number: U256,
+        created_at_timestamp: i64,
+        created_at_block_number: i64,
     ) -> Self {
         Self {
             id: event.pair.to_string().to_lowercase(),
@@ -54,10 +54,10 @@ impl DatabasePair {
             volume_token1: udec256!(0),
             volume_usd: udec256!(0),
             untracked_volume_usd: udec256!(0),
-            tx_count: u256!(0),
+            tx_count: 0,
             created_at_timestamp,
             created_at_block_number,
-            liquidity_provider_count: u256!(0),
+            liquidity_provider_count: 0,
         }
     }
 }

@@ -1,5 +1,4 @@
 use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
-use fastnum::U256;
 use log::info;
 
 use crate::{
@@ -72,8 +71,8 @@ pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
         // Create the pair data
         let db_pair = DatabasePair::new(
             event,
-            U256::from(log.block_timestamp.unwrap_or(0)),
-            U256::from(log.block_number.unwrap_or(0)),
+            log.block_timestamp.unwrap_or(0) as i64,
+            log.block_number.unwrap_or(0) as i64,
         );
 
         // Store the factory and the new pair

@@ -8,7 +8,7 @@ use crate::handlers::mint::Mint;
 pub struct DatabaseMint {
     pub id: String,
     pub transaction: String,
-    pub timestamp: U256,
+    pub timestamp: i64,
     pub pair: String,
     pub to: String,
     pub liquidity: UD256,
@@ -35,7 +35,7 @@ impl DatabaseMint {
                 log.transaction_index.unwrap()
             ),
             transaction,
-            timestamp: U256::from(log.block_timestamp.unwrap()),
+            timestamp: log.block_timestamp.unwrap() as i64,
             pair: event.address.to_string(),
             // TODO: fix 'to' and 'liquidity'
             to: "".to_owned(),

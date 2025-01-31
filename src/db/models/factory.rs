@@ -1,4 +1,4 @@
-use fastnum::{u256, udec256, U256, UD256};
+use fastnum::{udec256, UD256};
 use serde::{Deserialize, Serialize};
 
 use crate::db::DatabaseKeys;
@@ -12,7 +12,7 @@ pub struct DatabaseFactory {
     pub untracked_volume_usd: UD256,
     pub total_liquidity_usd: UD256,
     pub total_liquidity_eth: UD256,
-    pub tx_count: U256,
+    pub tx_count: i64,
     pub pairs: Vec<String>,
 }
 
@@ -32,7 +32,7 @@ impl DatabaseFactory {
             untracked_volume_usd: udec256!(0),
             total_liquidity_usd: udec256!(0),
             total_liquidity_eth: udec256!(0),
-            tx_count: u256!(0),
+            tx_count: 0,
             pairs: vec![],
         }
     }

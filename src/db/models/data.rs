@@ -12,7 +12,7 @@ pub struct DatabaseDexDayData {
     pub total_liquidity_eth: UD256,
     pub total_volume_usd: UD256,
     pub total_liquidity_usd: UD256,
-    pub tx_count: U256,
+    pub tx_count: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

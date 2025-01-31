@@ -197,32 +197,3 @@ pub fn convert_token_to_decimal(
         token_amount_decimal / divisor
     }
 }
-
-pub fn parse_uint256(u: alloy::primitives::Uint<256, 4>) -> fastnum::U256 {
-    let bytes: [u8; 32] = u.to_be_bytes();
-
-    fastnum::U256::from_be_slice(&bytes).unwrap()
-}
-
-pub fn parse_uint112(u: alloy::primitives::Uint<112, 2>) -> fastnum::U256 {
-    let bytes: [u8; 32] = u.to_be_bytes();
-
-    fastnum::U256::from_be_slice(&bytes).unwrap()
-}
-
-/// Serialize `U256` as a string
-pub fn serialize<S>(value: &U256, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    serializer.serialize_str(&value.to_string())
-}
-
-/// Deserialize `U256` from a string
-pub fn deserialize<'de, D>(deserializer: D) -> Result<U256, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    s.parse::<U256>().map_err(serde::de::Error::custom)
-}

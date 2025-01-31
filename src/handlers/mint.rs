@@ -64,8 +64,8 @@ pub async fn handle_mint(log: Log, db: &Database) {
         .mul(token1_amount)
         .add(token0.derived_eth.mul(bundle.eth_price));
 
-    pair.tx_count = pair.tx_count.add(u256!(1));
-    factory.tx_count = factory.tx_count.add(u256!(1));
+    pair.tx_count = pair.tx_count + 1;
+    factory.tx_count = factory.tx_count + 1;
 
     db.update_token(&token0).await;
     db.update_token(&token1).await;

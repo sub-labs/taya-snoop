@@ -1,5 +1,5 @@
 use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
-use fastnum::{u256, U256};
+use fastnum::u256;
 
 use crate::db::Database;
 
@@ -64,8 +64,8 @@ pub async fn handle_burn(log: Log, db: &Database) {
         .mul(token1_amount)
         .add(token0.derived_eth.mul(bundle.eth_price));
 
-    pair.tx_count = pair.tx_count.add(u256!(1));
-    factory.tx_count = factory.tx_count.add(u256!(1));
+    pair.tx_count = pair.tx_count + 1;
+    factory.tx_count = factory.tx_count + 1;
 
     db.update_token(&token0).await;
     db.update_token(&token1).await;
@@ -76,7 +76,7 @@ pub async fn handle_burn(log: Log, db: &Database) {
     burn.sender = event.sender.to_string().to_lowercase();
     burn.amount0 = token0_amount;
     burn.amount1 = token1_amount;
-    burn.log_index = U256::from(log.log_index.unwrap());
+    burn.log_index = log.log_index.unwrap() as i64;
     burn.amount_usd = amount_total_usd;
 
     db.update_burn(&burn).await;

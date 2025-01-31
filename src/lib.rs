@@ -4,3 +4,4 @@ pub mod configs;
 pub mod db;
 pub mod handlers;
 pub mod rpc;
+pub mod utils;

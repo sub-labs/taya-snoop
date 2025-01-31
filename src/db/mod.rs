@@ -242,7 +242,6 @@ impl Database {
         let token_id = token.id.clone().to_lowercase();
 
         let filter = doc! { "id": token_id };
-        println!("{:?}", token);
 
         let doc = mongodb::bson::to_document(token).unwrap();
 

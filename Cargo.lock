@@ -3712,6 +3712,7 @@ dependencies = [
  "log",
  "mongodb",
  "serde",
+ "serde_with",
  "simple_logger",
  "tokio",
 ]
