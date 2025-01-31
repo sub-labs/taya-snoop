@@ -1,8 +1,6 @@
-use alloy::primitives::{Log, LogData};
-use fastnum::{udec256, U256, UD256};
+use alloy::primitives::Address;
+use fastnum::{udec256, UD256};
 use serde::{Deserialize, Serialize};
-
-use crate::handlers::mint::Mint;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseMint {
@@ -15,39 +13,34 @@ pub struct DatabaseMint {
     pub sender: String,
     pub amount0: UD256,
     pub amount1: UD256,
-    pub log_index: U256,
+    pub log_index: i64,
     pub amount_usd: UD256,
     pub fee_to: String,
     pub fee_liquidity: UD256,
 }
 
 impl DatabaseMint {
-    pub fn from_log(
-        log: &alloy::rpc::types::Log<LogData>,
-        event: Log<Mint>,
+    pub fn new(
+        id: String,
+        transaction: String,
+        timestamp: i64,
+        pair: String,
+        to: String,
+        log_index: i64,
     ) -> Self {
-        let transaction = log.transaction_hash.unwrap().to_string();
-
         Self {
-            id: format!(
-                "{}-{}",
-                transaction,
-                log.transaction_index.unwrap()
-            ),
+            id,
             transaction,
-            timestamp: log.block_timestamp.unwrap() as i64,
-            pair: event.address.to_string(),
-            // TODO: fix 'to' and 'liquidity'
-            to: "".to_owned(),
+            timestamp,
+            pair,
+            to,
             liquidity: udec256!(0),
-            sender: event.sender.to_string(),
-            // TODO: fix amounts
+            sender: Address::ZERO.to_string(),
             amount0: udec256!(0),
             amount1: udec256!(0),
-            log_index: U256::from(log.log_index.unwrap()),
-            // TODO: fix amount usd and fees
+            log_index,
             amount_usd: udec256!(0),
-            fee_to: "".to_owned(),
+            fee_to: Address::ZERO.to_string(),
             fee_liquidity: udec256!(0),
         }
     }

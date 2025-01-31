@@ -1,9 +1,15 @@
-use alloy::primitives::{Log, LogData};
+use alloy::primitives::Address;
 use fastnum::{udec256, UD256};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-use crate::handlers::burn::Burn;
+pub struct BurnData {
+    pub sender: Option<String>,
+    pub liquidity: UD256,
+    pub pair: String,
+    pub to: Option<String>,
+    pub needs_complete: bool,
+}
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -13,10 +19,10 @@ pub struct DatabaseBurn {
     pub timestamp: i64,
     pub pair: String,
     pub liquidity: UD256,
-    pub sender: String,
+    pub sender: Option<String>,
     pub amount0: UD256,
     pub amount1: UD256,
-    pub to: String,
+    pub to: Option<String>,
     pub log_index: i64,
     pub amount_usd: UD256,
     pub needs_complete: bool,
@@ -25,31 +31,28 @@ pub struct DatabaseBurn {
 }
 
 impl DatabaseBurn {
-    pub fn from_log(
-        log: &alloy::rpc::types::Log<LogData>,
-        event: Log<Burn>,
+    pub fn new(
+        id: String,
+        transaction: String,
+        timestamp: i64,
+        log_index: i64,
+        data: BurnData,
     ) -> Self {
-        let transaction = log.transaction_hash.unwrap().to_string();
-
         Self {
-            id: format!(
-                "{}-{}",
-                transaction,
-                log.transaction_index.unwrap()
-            ),
+            id,
             transaction,
-            timestamp: log.block_timestamp.unwrap() as i64,
-            pair: event.address.to_string(),
-            to: "".to_owned(),
-            liquidity: udec256!(0),
-            sender: event.sender.to_string(),
+            timestamp,
+            pair: data.pair,
+            to: data.to,
+            liquidity: data.liquidity,
+            sender: data.sender,
             amount0: udec256!(0),
             amount1: udec256!(0),
-            log_index: log.log_index.unwrap() as i64,
+            log_index,
             amount_usd: udec256!(0),
-            fee_to: "".to_owned(),
+            fee_to: Address::ZERO.to_string(),
             fee_liquidity: udec256!(0),
-            needs_complete: false,
+            needs_complete: data.needs_complete,
         }
     }
 }

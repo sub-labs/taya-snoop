@@ -72,7 +72,7 @@ pub async fn handle_burn(log: Log, db: &Database) {
     db.update_factory(&factory).await;
 
     let mut burn = burn.unwrap();
-    burn.sender = event.sender.to_string().to_lowercase();
+    burn.sender = Some(event.sender.to_string().to_lowercase());
     burn.amount0 = token0_amount;
     burn.amount1 = token1_amount;
     burn.log_index = log.log_index.unwrap() as i64;

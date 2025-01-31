@@ -9,4 +9,3 @@ pub mod swap;
 pub mod sync_state;
 pub mod token;
 pub mod transaction;
-pub mod user;

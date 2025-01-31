@@ -1,5 +1,4 @@
 use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
-use fastnum::U256;
 
 use crate::{db::Database, utils::format::parse_uint256};
 
@@ -76,7 +75,7 @@ pub async fn handle_mint(log: Log, db: &Database) {
     mint.sender = event.sender.to_string().to_lowercase();
     mint.amount0 = token0_amount;
     mint.amount1 = token1_amount;
-    mint.log_index = U256::from(log.log_index.unwrap());
+    mint.log_index = log.log_index.unwrap() as i64;
     mint.amount_usd = amount_total_usd;
 
     db.update_mint(&mint).await;
