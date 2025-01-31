@@ -5,8 +5,6 @@ use crate::{
 };
 use alloy::{primitives::Address, rpc::types::Log};
 use fastnum::{decimal::Context, u256, udec256, U256, UD256};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::str::FromStr;
 
 pub const MINIMUM_USD_THRESHOLD_NEW_PAIRS: UD256 = udec256!(400000);
 
@@ -191,7 +189,7 @@ pub fn convert_token_to_decimal(
             .unwrap();
 
     if exchange_decimals.is_zero() {
-        return token_amount_decimal;
+        token_amount_decimal
     } else {
         let divisor = exponent_to_bigdecimal(exchange_decimals);
         token_amount_decimal / divisor
