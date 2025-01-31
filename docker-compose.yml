@@ -38,7 +38,7 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      POSTGRES_PASSWORD: random
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
       
@@ -52,7 +52,7 @@ services:
     ports:
       - "8100:8100"
     environment:
-      MONGO_URL: "mongodb://root:${DATABASE_PASSWORD}@mongodb:27017"
+      MONGO_URL: "mongodb://root:random@mongodb:27017"
       LOG_LEVEL: debug
 
   hasura:
@@ -67,7 +67,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      HASURA_GRAPHQL_METADATA_DATABASE_URL: "postgres://postgres:${DATABASE_PASSWORD}@postgres:5432/postgres"
+      HASURA_GRAPHQL_METADATA_DATABASE_URL: "postgres://postgres:random@postgres:5432/postgres"
       HASURA_GRAPHQL_IN_MEMORY_METADATA: "true"
       HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
       HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_PASSWORD}
@@ -81,7 +81,7 @@ services:
         condition: service_healthy
     command: >
       snoop
-      --database "mongodb://root:${DATABASE_PASSWORD}@mongo"
+      --database "mongodb://root:random@mongo"
       --rpc ${RPC_ENDPOINT}
       --batch-size ${BATCH_SIZE-50}
     restart: always
