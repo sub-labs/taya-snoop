@@ -1,6 +1,16 @@
 use crate::{
     configs::Config,
-    db::{models::token::DatabaseToken, Database},
+    db::{
+        models::{
+            data::{
+                DatabaseFactoryDayData, DatabasePairDayData,
+                DatabasePairHourData, DatabaseTokenDayData,
+            },
+            pair::DatabasePair,
+            token::DatabaseToken,
+        },
+        Database,
+    },
     rpc::Rpc,
 };
 use alloy::{primitives::Address, rpc::types::Log};
@@ -27,9 +37,9 @@ pub const USDT_WETH_PAIR: &str =
     "0x0d4a11d5eeaac28ec3f61d100daf4d40471f1852";
 
 pub async fn get_eth_price_usd(db: &Database) -> UD256 {
-    let dai_pair = db.get_pair(DAI_WETH_PAIR.to_owned()).await;
-    let usdc_pair = db.get_pair(USDC_WETH_PAIR.to_owned()).await;
-    let usdt_pair = db.get_pair(USDT_WETH_PAIR.to_owned()).await;
+    let dai_pair = db.get_pair(DAI_WETH_PAIR).await;
+    let usdc_pair = db.get_pair(USDC_WETH_PAIR).await;
+    let usdt_pair = db.get_pair(USDT_WETH_PAIR).await;
 
     match (dai_pair, usdc_pair, usdt_pair) {
         (Some(dai), Some(usdc), Some(usdt)) => {
@@ -90,7 +100,7 @@ pub async fn find_eth_per_token(
             .await;
 
         if pair_address != Address::ZERO.to_string() {
-            let pair = db.get_pair(pair_address).await;
+            let pair = db.get_pair(&pair_address).await;
             if pair.is_none() {
                 continue;
             }
@@ -100,7 +110,7 @@ pub async fn find_eth_per_token(
             if pair.token0 == token.id
                 && pair.reserve_eth.ge(&MINIMUM_LIQUIDITY_THRESHOLD_ETH)
             {
-                let token0 = db.get_token(pair.token0).await;
+                let token0 = db.get_token(&pair.token0).await;
                 if token0.is_none() {
                     continue;
                 }
@@ -112,7 +122,7 @@ pub async fn find_eth_per_token(
             if pair.token1 == token.id
                 && pair.reserve_eth.ge(&MINIMUM_LIQUIDITY_THRESHOLD_ETH)
             {
-                let token1 = db.get_token(pair.token1).await;
+                let token1 = db.get_token(&pair.token1).await;
                 if token1.is_none() {
                     continue;
                 }
@@ -122,6 +132,75 @@ pub async fn find_eth_per_token(
                 return pair.token1_price.mul(token1.derived_eth);
             }
         }
+    }
+
+    udec256!(0)
+}
+
+pub async fn get_tracked_volume_usd(
+    token_amount0: UD256,
+    token0: &DatabaseToken,
+    token_amount1: UD256,
+    token1: &DatabaseToken,
+    pair: &DatabasePair,
+    db: &Database,
+) -> UD256 {
+    let bundle = db.get_bundle().await;
+
+    let price0 = token0.derived_eth.mul(bundle.eth_price);
+    let price1 = token1.derived_eth.mul(bundle.eth_price);
+
+    if pair.liquidity_provider_count > 5 {
+        let reserve0_usd = pair.reserve0.mul(price0);
+        let reserve1_usd = pair.reserve1.mul(price1);
+
+        if WHITELIST_TOKENS.contains(&token0.id.as_str())
+            && WHITELIST_TOKENS.contains(&token1.id.as_str())
+            && reserve0_usd
+                .add(reserve1_usd)
+                .lt(&MINIMUM_USD_THRESHOLD_NEW_PAIRS)
+        {
+            return udec256!(0);
+        }
+
+        if WHITELIST_TOKENS.contains(&token0.id.as_str())
+            && !WHITELIST_TOKENS.contains(&token1.id.as_str())
+            && reserve0_usd
+                .mul(udec256!(2))
+                .lt(&MINIMUM_USD_THRESHOLD_NEW_PAIRS)
+        {
+            return udec256!(0);
+        }
+
+        if !WHITELIST_TOKENS.contains(&token0.id.as_str())
+            && WHITELIST_TOKENS.contains(&token1.id.as_str())
+            && reserve1_usd
+                .mul(udec256!(2))
+                .lt(&MINIMUM_USD_THRESHOLD_NEW_PAIRS)
+        {
+            return udec256!(0);
+        }
+    }
+
+    if WHITELIST_TOKENS.contains(&token0.id.as_str())
+        && WHITELIST_TOKENS.contains(&token1.id.as_str())
+    {
+        return token_amount0
+            .mul(price0)
+            .add(token_amount1.mul(price1))
+            .div(udec256!(2));
+    }
+
+    if WHITELIST_TOKENS.contains(&token0.id.as_str())
+        && !WHITELIST_TOKENS.contains(&token1.id.as_str())
+    {
+        return token_amount0.mul(price0);
+    }
+
+    if !WHITELIST_TOKENS.contains(&token0.id.as_str())
+        && WHITELIST_TOKENS.contains(&token1.id.as_str())
+    {
+        return token_amount1.mul(price1);
     }
 
     udec256!(0)
@@ -160,13 +239,133 @@ pub async fn get_tracked_liquidity_usd(
     udec256!(0)
 }
 
-pub async fn update_pair_day_data(log: &Log) {}
+pub async fn update_factory_day_data(
+    log: &Log,
+    db: &Database,
+) -> DatabaseFactoryDayData {
+    let factory = db.get_factory().await;
+    let timestamp = log.block_timestamp.unwrap() as i64;
+    let day_id = timestamp / 86400;
+    let day_start_timestamp = day_id * 86400;
 
-pub async fn update_pair_hour_data(log: &Log) {}
+    let mut factory_day_data =
+        match db.get_factory_day_data(&day_id.to_string()).await {
+            Some(factory_day_data) => factory_day_data,
+            None => DatabaseFactoryDayData::new(
+                day_id.to_string(),
+                day_start_timestamp,
+            ),
+        };
 
-pub async fn update_factory_day_data(log: &Log) {}
+    factory_day_data.total_liquidity_usd = factory.total_liquidity_usd;
+    factory_day_data.total_liquidity_eth = factory.total_liquidity_eth;
+    factory_day_data.tx_count = factory.tx_count;
 
-pub async fn update_token_day_data(token: &DatabaseToken, log: &Log) {}
+    db.update_factory_day_data(&factory_day_data).await;
+
+    factory_day_data
+}
+
+pub async fn update_pair_day_data(
+    log: &Log,
+    db: &Database,
+) -> DatabasePairDayData {
+    let timestamp = log.block_timestamp.unwrap() as i64;
+    let day_id = timestamp / 86400;
+    let day_start_timestamp = day_id * 86400;
+    let day_pair_id = format!("{}-{}", log.address(), day_id); // TODO: check if this is correct;
+
+    let pair = db.get_pair(&log.address().to_string()).await.unwrap();
+
+    let mut pair_day_data =
+        match db.get_pair_day_data(&day_pair_id.to_string()).await {
+            Some(pair_day_data) => pair_day_data,
+            None => DatabasePairDayData::new(
+                day_pair_id,
+                day_start_timestamp,
+                pair.id,
+                pair.token0,
+                pair.token1,
+            ),
+        };
+
+    pair_day_data.total_supply = pair.total_supply;
+    pair_day_data.reserve0 = pair.reserve0;
+    pair_day_data.reserve1 = pair.reserve1;
+    pair_day_data.reserve_usd = pair.reserve_usd;
+    pair_day_data.daily_txns += 1;
+
+    db.update_pair_day_data(&pair_day_data).await;
+
+    pair_day_data
+}
+
+pub async fn update_pair_hour_data(
+    log: &Log,
+    db: &Database,
+) -> DatabasePairHourData {
+    let timestamp = log.block_timestamp.unwrap() as i64;
+    let hour_index = timestamp / 3600;
+    let hour_start_unix = hour_index * 3600;
+    let hour_pair_id = format!("{}-{}", log.address(), hour_index); // TODO: check if this is correct;
+
+    let pair = db.get_pair(&log.address().to_string()).await.unwrap();
+
+    let mut pair_hour_data =
+        match db.get_pair_hour_data(&hour_pair_id.to_string()).await {
+            Some(pair_hour_data) => pair_hour_data,
+            None => DatabasePairHourData::new(
+                hour_pair_id,
+                hour_start_unix,
+                pair.id,
+            ),
+        };
+
+    pair_hour_data.total_supply = pair.total_supply;
+    pair_hour_data.reserve0 = pair.reserve0;
+    pair_hour_data.reserve1 = pair.reserve1;
+    pair_hour_data.reserve_usd = pair.reserve_usd;
+    pair_hour_data.hourly_txns += 1;
+
+    db.update_pair_hour_data(&pair_hour_data).await;
+
+    pair_hour_data
+}
+
+pub async fn update_token_day_data(
+    token: &DatabaseToken,
+    log: &Log,
+    db: &Database,
+) -> DatabaseTokenDayData {
+    let bundle = db.get_bundle().await;
+    let timestamp = log.block_timestamp.unwrap() as i64;
+    let day_id = timestamp / 86400;
+    let day_start_timestamp = day_id * 86400;
+    let token_day_id = format!("{}-{}", token.id, day_id);
+
+    let mut token_day_data =
+        match db.get_token_day_data(&token_day_id.to_string()).await {
+            Some(token_day_data) => token_day_data,
+            None => DatabaseTokenDayData::new(
+                token_day_id,
+                day_start_timestamp,
+                token.id.clone(),
+                token.derived_eth.mul(bundle.eth_price),
+            ),
+        };
+
+    token_day_data.price_usd = token.derived_eth.mul(bundle.eth_price);
+    token_day_data.total_liquidity_token = token.total_liquidity;
+    token_day_data.total_liquidity_eth =
+        token.total_liquidity.mul(token.derived_eth);
+    token_day_data.total_liquidity_usd =
+        token_day_data.total_liquidity_eth.mul(bundle.eth_price);
+    token_day_data.daily_txns += 1;
+
+    db.update_token_day_data(&token_day_data).await;
+
+    token_day_data
+}
 
 fn exponent_to_bigdecimal(decimals: &U256) -> UD256 {
     let mut bd = u256!(1);

@@ -4,16 +4,26 @@ use crate::chains::Chain;
 
 use log::*;
 use models::{
-    bundle::DatabaseBundle, burn::DatabaseBurn, factory::DatabaseFactory,
-    mint::DatabaseMint, pair::DatabasePair, sync_state::DatabaseSyncState,
-    token::DatabaseToken, transaction::DatabaseTransaction,
+    bundle::DatabaseBundle,
+    burn::DatabaseBurn,
+    data::{
+        DatabaseFactoryDayData, DatabasePairDayData, DatabasePairHourData,
+        DatabaseTokenDayData,
+    },
+    factory::DatabaseFactory,
+    mint::DatabaseMint,
+    pair::DatabasePair,
+    swap::DatabaseSwap,
+    sync_state::DatabaseSyncState,
+    token::DatabaseToken,
+    transaction::DatabaseTransaction,
 };
 use mongodb::{
-    bson::doc,
+    bson::{doc, to_document},
     options::{ClientOptions, ServerApi, ServerApiVersion},
     Client,
 };
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 
 #[derive(Clone)]
 pub struct Database {
@@ -33,7 +43,7 @@ pub enum DatabaseKeys {
     Users,
     Tokens,
     Pairs,
-    DexDayData,
+    FactoryDayData,
     PairHourData,
     PairDayData,
     TokenDayData,
@@ -53,7 +63,7 @@ impl DatabaseKeys {
             DatabaseKeys::Users => "users",
             DatabaseKeys::Tokens => "tokens",
             DatabaseKeys::Pairs => "pairs",
-            DatabaseKeys::DexDayData => "dex_day_data",
+            DatabaseKeys::FactoryDayData => "dex_day_data",
             DatabaseKeys::PairHourData => "pair_hour_data",
             DatabaseKeys::PairDayData => "pair_day_data",
             DatabaseKeys::TokenDayData => "token_day_data",
@@ -135,60 +145,6 @@ impl Database {
         }
     }
 
-    pub async fn get_token(
-        &self,
-        token_id: String,
-    ) -> Option<DatabaseToken> {
-        self.db
-            .collection::<DatabaseToken>(DatabaseKeys::Tokens.as_str())
-            .find_one(doc! { "id": { "$eq": token_id.to_lowercase()}})
-            .await
-            .unwrap()
-    }
-
-    pub async fn get_pair(&self, pair_id: String) -> Option<DatabasePair> {
-        self.db
-            .collection::<DatabasePair>(DatabaseKeys::Pairs.as_str())
-            .find_one(doc! { "id": { "$eq": pair_id.to_lowercase()}})
-            .await
-            .unwrap()
-    }
-
-    pub async fn get_transaction(
-        &self,
-        transaction_hash: String,
-    ) -> Option<DatabaseTransaction> {
-        self.db
-            .collection::<DatabaseTransaction>(
-                DatabaseKeys::Transactions.as_str(),
-            )
-            .find_one(doc! { "id": { "$eq": transaction_hash}})
-            .await
-            .unwrap()
-    }
-
-    pub async fn get_mint(
-        &self,
-        mint_id: &String,
-    ) -> Option<DatabaseMint> {
-        self.db
-            .collection::<DatabaseMint>(DatabaseKeys::Mints.as_str())
-            .find_one(doc! { "id": { "$eq": mint_id}})
-            .await
-            .unwrap()
-    }
-
-    pub async fn get_burn(
-        &self,
-        burn_id: &String,
-    ) -> Option<DatabaseBurn> {
-        self.db
-            .collection::<DatabaseBurn>(DatabaseKeys::Burns.as_str())
-            .find_one(doc! { "id": { "$eq": burn_id}})
-            .await
-            .unwrap()
-    }
-
     pub async fn get_bundle(&self) -> DatabaseBundle {
         let bundle_key = DatabaseKeys::Bundle.as_str();
 
@@ -214,99 +170,80 @@ impl Database {
         }
     }
 
-    pub async fn get_pairs(&self) -> Vec<String> {
-        let factory = self.get_factory().await;
-
-        factory.pairs
+    pub async fn get_token(&self, id: &str) -> Option<DatabaseToken> {
+        return self.get::<DatabaseToken>(DatabaseKeys::Tokens, id).await;
     }
 
-    pub async fn update_factory(&self, factory: &DatabaseFactory) {
-        let factory_key = DatabaseKeys::Factory.as_str();
-
-        let filter = doc! { "id": factory_key };
-
-        let doc = mongodb::bson::to_document(factory).unwrap();
-
-        let update = doc! {
-        "$set": doc};
-
-        self.db
-            .collection::<DatabaseFactory>(factory_key)
-            .update_one(filter, update)
-            .upsert(true)
-            .await
-            .unwrap();
+    pub async fn get_pair(&self, id: &str) -> Option<DatabasePair> {
+        return self.get::<DatabasePair>(DatabaseKeys::Pairs, id).await;
     }
 
-    pub async fn update_token(&self, token: &DatabaseToken) {
-        let token_id = token.id.clone().to_lowercase();
-
-        let filter = doc! { "id": token_id };
-
-        let doc = mongodb::bson::to_document(token).unwrap();
-
-        self.db
-            .collection::<DatabaseToken>(DatabaseKeys::Tokens.as_str())
-            .update_one(filter, doc! { "$set": doc })
-            .upsert(true)
-            .await
-            .unwrap();
+    pub async fn get_transaction(
+        &self,
+        id: &str,
+    ) -> Option<DatabaseTransaction> {
+        return self
+            .get::<DatabaseTransaction>(DatabaseKeys::Transactions, id)
+            .await;
     }
 
-    pub async fn update_bundle(&self, bundle: &DatabaseBundle) {
-        let bundle_key = DatabaseKeys::Bundle.as_str();
-
-        let filter = doc! { "id": bundle_key };
-
-        let doc = mongodb::bson::to_document(bundle).unwrap();
-
-        self.db
-            .collection::<DatabaseBundle>(bundle_key)
-            .update_one(filter, doc! { "$set": doc })
-            .upsert(true)
-            .await
-            .unwrap();
+    pub async fn get_mint(&self, id: &str) -> Option<DatabaseMint> {
+        return self.get::<DatabaseMint>(DatabaseKeys::Mints, id).await;
     }
 
-    pub async fn update_pair(&self, pair: &DatabasePair) {
-        let pair_key = pair.id.to_lowercase();
-
-        let filter = doc! { "id": pair_key };
-
-        let doc = mongodb::bson::to_document(pair).unwrap();
-
-        self.db
-            .collection::<DatabasePair>(DatabaseKeys::Pairs.as_str())
-            .update_one(filter, doc! { "$set": doc })
-            .upsert(true)
-            .await
-            .unwrap();
+    pub async fn get_burn(&self, id: &str) -> Option<DatabaseBurn> {
+        return self.get::<DatabaseBurn>(DatabaseKeys::Burns, id).await;
     }
 
-    pub async fn update_mint(&self, mint: &DatabaseMint) {
-        let filter = doc! { "id": mint.id.clone() };
-
-        let doc = mongodb::bson::to_document(mint).unwrap();
-
-        self.db
-            .collection::<DatabaseMint>(DatabaseKeys::Mints.as_str())
-            .update_one(filter, doc! { "$set": doc })
-            .upsert(true)
-            .await
-            .unwrap();
+    pub async fn get_factory_day_data(
+        &self,
+        id: &str,
+    ) -> Option<DatabaseFactoryDayData> {
+        return self
+            .get::<DatabaseFactoryDayData>(
+                DatabaseKeys::FactoryDayData,
+                id,
+            )
+            .await;
     }
 
-    pub async fn update_burn(&self, burn: &DatabaseBurn) {
-        let filter = doc! { "id": burn.id.clone() };
+    pub async fn get_pair_day_data(
+        &self,
+        id: &str,
+    ) -> Option<DatabasePairDayData> {
+        return self
+            .get::<DatabasePairDayData>(DatabaseKeys::PairDayData, id)
+            .await;
+    }
 
-        let doc = mongodb::bson::to_document(burn).unwrap();
+    pub async fn get_pair_hour_data(
+        &self,
+        id: &str,
+    ) -> Option<DatabasePairHourData> {
+        return self
+            .get::<DatabasePairHourData>(DatabaseKeys::PairHourData, id)
+            .await;
+    }
 
+    pub async fn get_token_day_data(
+        &self,
+        id: &str,
+    ) -> Option<DatabaseTokenDayData> {
+        return self
+            .get::<DatabaseTokenDayData>(DatabaseKeys::TokenDayData, id)
+            .await;
+    }
+
+    async fn get<T>(&self, collection: DatabaseKeys, id: &str) -> Option<T>
+    where
+        T: DeserializeOwned + Unpin + Send + Sync + 'static,
+    {
         self.db
-            .collection::<DatabaseMint>(DatabaseKeys::Burns.as_str())
-            .update_one(filter, doc! { "$set": doc })
-            .upsert(true)
+            .collection::<T>(collection.as_str())
+            .find_one(doc! { "id": id.to_lowercase() })
             .await
-            .unwrap();
+            .ok()
+            .unwrap()
     }
 
     pub async fn update_last_block_indexed(
@@ -326,16 +263,130 @@ impl Database {
             .unwrap();
     }
 
-    pub async fn store<T>(&self, key: DatabaseKeys, data: &Vec<T>)
+    pub async fn update_factory(&self, data: &DatabaseFactory) {
+        return self
+            .update::<DatabaseFactory>(
+                DatabaseKeys::Factory,
+                DatabaseKeys::Factory.as_str(),
+                data,
+            )
+            .await;
+    }
+
+    pub async fn update_token(&self, data: &DatabaseToken) {
+        return self
+            .update::<DatabaseToken>(DatabaseKeys::Tokens, &data.id, data)
+            .await;
+    }
+
+    pub async fn update_pair(&self, data: &DatabasePair) {
+        return self
+            .update::<DatabasePair>(DatabaseKeys::Pairs, &data.id, data)
+            .await;
+    }
+
+    pub async fn update_burn(&self, data: &DatabaseBurn) {
+        return self
+            .update::<DatabaseBurn>(DatabaseKeys::Burns, &data.id, data)
+            .await;
+    }
+
+    pub async fn update_mint(&self, data: &DatabaseMint) {
+        return self
+            .update::<DatabaseMint>(DatabaseKeys::Mints, &data.id, data)
+            .await;
+    }
+
+    pub async fn update_bundle(&self, data: &DatabaseBundle) {
+        return self
+            .update::<DatabaseBundle>(
+                DatabaseKeys::Bundle,
+                DatabaseKeys::Bundle.as_str(),
+                data,
+            )
+            .await;
+    }
+
+    pub async fn update_swap(&self, data: &DatabaseSwap) {
+        return self
+            .update::<DatabaseSwap>(DatabaseKeys::Swaps, &data.id, data)
+            .await;
+    }
+
+    pub async fn update_transaction(&self, data: &DatabaseTransaction) {
+        return self
+            .update::<DatabaseTransaction>(
+                DatabaseKeys::Transactions,
+                &data.hash,
+                data,
+            )
+            .await;
+    }
+
+    pub async fn update_factory_day_data(
+        &self,
+        data: &DatabaseFactoryDayData,
+    ) {
+        return self
+            .update::<DatabaseFactoryDayData>(
+                DatabaseKeys::FactoryDayData,
+                &data.id,
+                data,
+            )
+            .await;
+    }
+
+    pub async fn update_pair_day_data(&self, data: &DatabasePairDayData) {
+        return self
+            .update::<DatabasePairDayData>(
+                DatabaseKeys::PairDayData,
+                &data.id,
+                data,
+            )
+            .await;
+    }
+
+    pub async fn update_pair_hour_data(
+        &self,
+        data: &DatabasePairHourData,
+    ) {
+        return self
+            .update::<DatabasePairHourData>(
+                DatabaseKeys::PairHourData,
+                &data.id,
+                data,
+            )
+            .await;
+    }
+
+    pub async fn update_token_day_data(
+        &self,
+        data: &DatabaseTokenDayData,
+    ) {
+        return self
+            .update::<DatabaseTokenDayData>(
+                DatabaseKeys::TokenDayData,
+                &data.id,
+                data,
+            )
+            .await;
+    }
+
+    async fn update<T>(&self, collection: DatabaseKeys, id: &str, data: &T)
     where
         T: Serialize + Send + Sync + Unpin + 'static,
     {
-        if !data.is_empty() {
-            self.db
-                .collection::<T>(key.as_str())
-                .insert_many(data)
-                .await
-                .unwrap();
-        }
+        let filter = doc! { "id": id };
+
+        let data_doc = to_document(data).unwrap();
+
+        let doc = doc! { "$set": data_doc };
+
+        self.db
+            .collection::<T>(collection.as_str())
+            .update_one(filter, doc)
+            .upsert(true)
+            .await
+            .unwrap();
     }
 }

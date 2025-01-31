@@ -73,12 +73,12 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
 
         handle_pairs(pair_logs, db, rpc).await;
 
-        let pairs = db.get_pairs().await;
+        let factory = db.get_factory().await;
 
-        if !pairs.is_empty() {
+        if !factory.pairs.is_empty() {
             let mut event_logs = rpc
                 .get_pairs_logs_batch(
-                    &pairs,
+                    &factory.pairs,
                     first_block as u64,
                     last_block as u64,
                 )

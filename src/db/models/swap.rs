@@ -1,8 +1,23 @@
-use alloy::primitives::{Log, LogData};
-use fastnum::{udec256, UD256};
+use fastnum::UD256;
 use serde::{Deserialize, Serialize};
 
-use crate::handlers::swap::Swap;
+pub struct SwapAmounts {
+    pub amount0_in: UD256,
+    pub amount1_in: UD256,
+    pub amount0_out: UD256,
+    pub amount1_out: UD256,
+    pub amount_usd: UD256,
+}
+
+pub struct SwapData {
+    pub pair: String,
+    pub sender: String,
+    pub to: String,
+    pub from: String,
+    pub log_index: i64,
+    pub transaction: String,
+    pub timestamp: i64,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseSwap {
@@ -22,29 +37,21 @@ pub struct DatabaseSwap {
 }
 
 impl DatabaseSwap {
-    pub fn from_log(
-        log: &alloy::rpc::types::Log<LogData>,
-        event: Log<Swap>,
-    ) -> Self {
-        let transaction = log.transaction_hash.unwrap().to_string();
+    pub fn new(id: String, data: SwapData, amounts: SwapAmounts) -> Self {
         Self {
-            id: format!(
-                "{}-{}",
-                transaction,
-                log.transaction_index.unwrap()
-            ),
-            transaction,
-            timestamp: log.block_timestamp.unwrap() as i64,
-            pair: event.address.to_string(),
-            sender: event.sender.to_string(),
-            from: "".to_owned(),
-            amount0_in: udec256!(0),
-            amount1_in: udec256!(0),
-            amount0_out: udec256!(0),
-            amount1_out: udec256!(0),
-            to: event.to.to_string(),
-            log_index: log.log_index.unwrap() as i64,
-            amount_usd: udec256!(0),
+            id,
+            transaction: data.transaction,
+            timestamp: data.timestamp,
+            pair: data.pair,
+            sender: data.sender,
+            from: data.from,
+            amount0_in: amounts.amount0_in,
+            amount1_in: amounts.amount1_in,
+            amount0_out: amounts.amount0_out,
+            amount1_out: amounts.amount1_out,
+            to: data.to,
+            log_index: data.log_index,
+            amount_usd: amounts.amount_usd,
         }
     }
 }

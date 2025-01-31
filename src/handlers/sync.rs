@@ -23,12 +23,12 @@ pub async fn handle_sync(
     let event = Sync::decode_log(&log.inner, true).unwrap();
 
     // Get the pair
-    let mut pair = db.get_pair(event.address.to_string()).await.unwrap();
+    let mut pair = db.get_pair(&event.address.to_string()).await.unwrap();
 
     // Get the token0
-    let mut token0 = db.get_token(pair.token0.clone()).await.unwrap();
+    let mut token0 = db.get_token(&pair.token0).await.unwrap();
     // Get the token1
-    let mut token1 = db.get_token(pair.token1.clone()).await.unwrap();
+    let mut token1 = db.get_token(&pair.token1).await.unwrap();
 
     // Load the factory
     let mut factory = db.get_factory().await;

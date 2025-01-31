@@ -1,5 +1,5 @@
 use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
-use fastnum::{u256, U256};
+use fastnum::U256;
 
 use crate::{db::Database, utils::format::parse_uint256};
 
@@ -17,7 +17,7 @@ pub async fn handle_mint(log: Log, db: &Database) {
 
     let transaction_hash = log.transaction_hash.unwrap().to_string();
 
-    let transaction = db.get_transaction(transaction_hash).await;
+    let transaction = db.get_transaction(&transaction_hash).await;
     if transaction.is_none() {
         return;
     }
@@ -30,12 +30,12 @@ pub async fn handle_mint(log: Log, db: &Database) {
         return;
     }
 
-    let mut pair = db.get_pair(event.address.to_string()).await.unwrap();
+    let mut pair = db.get_pair(&event.address.to_string()).await.unwrap();
 
     let mut factory = db.get_factory().await;
 
-    let token0 = db.get_token(pair.token0.clone()).await;
-    let token1 = db.get_token(pair.token1.clone()).await;
+    let token0 = db.get_token(&pair.token0).await;
+    let token1 = db.get_token(&pair.token1).await;
 
     if token0.is_none() || token1.is_none() {
         return;
@@ -54,8 +54,8 @@ pub async fn handle_mint(log: Log, db: &Database) {
         &token1.decimals,
     );
 
-    token0.tx_count = token0.tx_count.add(u256!(1));
-    token1.tx_count = token1.tx_count.add(u256!(1));
+    token0.tx_count += 1;
+    token1.tx_count += 1;
 
     let bundle = db.get_bundle().await;
 
@@ -64,8 +64,8 @@ pub async fn handle_mint(log: Log, db: &Database) {
         .mul(token1_amount)
         .add(token0.derived_eth.mul(bundle.eth_price));
 
-    pair.tx_count = pair.tx_count + 1;
-    factory.tx_count = factory.tx_count + 1;
+    pair.tx_count += 1;
+    factory.tx_count += 1;
 
     db.update_token(&token0).await;
     db.update_token(&token1).await;
@@ -80,9 +80,10 @@ pub async fn handle_mint(log: Log, db: &Database) {
     mint.amount_usd = amount_total_usd;
 
     db.update_mint(&mint).await;
-    update_pair_day_data(&log).await;
-    update_pair_hour_data(&log).await;
-    update_factory_day_data(&log).await;
-    update_token_day_data(&token0, &log).await;
-    update_token_day_data(&token1, &log).await;
+
+    update_pair_day_data(&log, db).await;
+    update_pair_hour_data(&log, db).await;
+    update_factory_day_data(&log, db).await;
+    update_token_day_data(&token0, &log, db).await;
+    update_token_day_data(&token1, &log, db).await;
 }
