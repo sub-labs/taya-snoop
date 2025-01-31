@@ -12,7 +12,7 @@ services:
     volumes:
       - ./data/mongo/:/data/db
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh mongodb://root:${DATABASE_PASSWORD}@localhost:27017/admin --quiet
+      test: mongosh --eval 'db.runCommand("ping").ok' localhost:27017/test --quiet
       interval: 10s
       timeout: 5s
       retries: 3
