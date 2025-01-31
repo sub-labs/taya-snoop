@@ -45,7 +45,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      MONGO_URL: "mongodb://root:${DATABASE_PASSWORD}@mongodb:27017"
+      MONGO_URL: "mongodb://root:${DATABASE_PASSWORD}@mongo:27017"
 
   hasura:
     image: hasura/graphql-engine:latest
