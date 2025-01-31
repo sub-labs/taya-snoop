@@ -43,7 +43,7 @@ services:
     container_name: hasura-mongo-connector
     restart: always
     depends_on:
-      - mongodb
+      - mongo
     ports:
       - "8100:8100"
     environment:
