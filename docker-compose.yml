@@ -1,69 +1,4 @@
 services:
-  mongo:
-    image: mongo:latest
-    container_name: mongo
-    restart: always
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: ${DATABASE_PASSWORD}
-    env_file: "./.env"
-    volumes:
-      - ./data/mongo/:/data/db
-    healthcheck:
-      test: mongosh --eval 'db.runCommand("ping").ok' localhost:27017/test --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-      
-  postgres:
-    image: postgres:15
-    container_name: postgres
-    restart: always
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres -d postgres || exit 1" ]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data
-      
-  hasura-mongo-connector:
-    image: hasura/mongo-data-connector:latest
-    container_name: hasura-mongo-connector
-    restart: always
-    depends_on:
-      mongo:
-        condition: service_healthy
-    ports:
-      - "3000:3000"
-    environment:
-      MONGO_URL: "mongodb://root:${DATABASE_PASSWORD}@mongo:27017"
-
-  hasura:
-    image: hasura/graphql-engine:latest
-    container_name: hasura
-    restart: always
-    depends_on:
-      postgres:
-        condition: service_healthy
-    ports:
-      - "8080:8080"
-      - "4318:4318"
-    environment:
-      HASURA_GRAPHQL_METADATA_DATABASE_URL: "postgres://postgres:${DATABASE_PASSWORD}@postgres:5432/postgres"
-      HASURA_GRAPHQL_IN_MEMORY_METADATA: "true"
-      HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
-      HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_PASSWORD}
-    env_file: "./.env"
-
   indexer:
     image: snoop
     container_name: indexer
@@ -72,8 +7,8 @@ services:
         condition: service_healthy
     command: >
       snoop
-      --database "mongodb://root:${DATABASE_PASSWORD}@mongo"
+      --database "${DATABASE_URL}"
       --rpc ${RPC_ENDPOINT}
-      --batch-size ${BATCH_SIZE-50}
+      --batch-size ${BATCH_SIZE-500}
     restart: always
     env_file: "./.env"
