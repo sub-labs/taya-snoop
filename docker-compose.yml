@@ -40,9 +40,9 @@ services:
     restart: always
     depends_on:
       - mongo:
-        condition: service_healthy
+          condition: service_healthy
       - postgres:
-        condition: service_healthy
+          condition: service_healthy
     ports:
       - "8100:8100"
     environment:
@@ -56,7 +56,7 @@ services:
     depends_on:
       - hasura-mongo-connector
       - postgres:
-        condition: service_healthy
+          condition: service_healthy
     ports:
       - "8080:8080"
     environment:
@@ -71,7 +71,7 @@ services:
     container_name: indexer
     depends_on:
       - mongo:
-        condition: service_healthy
+          condition: service_healthy
     command: >
       snoop
       --database "mongodb://root:${DATABASE_PASSWORD}@mongo"
