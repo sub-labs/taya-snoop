@@ -7,7 +7,7 @@ services:
       - "27017:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: random
+      MONGO_INITDB_ROOT_PASSWORD: ${DATABASE_PASSWORD}
     env_file: "./.env"
     volumes:
       - ./data/mongo/:/data/db
@@ -15,7 +15,7 @@ services:
       test: >
         CMD-SHELL mongosh 
           --username root 
-          --password random
+          --password ${DATABASE_PASSWORD} 
           --authenticationDatabase admin 
           --eval 'db.runCommand({ ping: 1 })'
           --quiet 
@@ -23,7 +23,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 20s
       
   postgres:
     image: postgres:15
@@ -34,11 +34,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 20s
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_PASSWORD: random
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
       
@@ -52,7 +52,7 @@ services:
     ports:
       - "8100:8100"
     environment:
-      MONGO_URL: "mongodb://root:random@mongodb:27017"
+      MONGO_URL: "mongodb://root:${DATABASE_PASSWORD}@mongodb:27017"
       LOG_LEVEL: debug
 
   hasura:
@@ -67,7 +67,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      HASURA_GRAPHQL_METADATA_DATABASE_URL: "postgres://postgres:random@postgres:5432/postgres"
+      HASURA_GRAPHQL_METADATA_DATABASE_URL: "postgres://postgres:${DATABASE_PASSWORD}@postgres:5432/postgres"
       HASURA_GRAPHQL_IN_MEMORY_METADATA: "true"
       HASURA_GRAPHQL_ENABLE_CONSOLE: "true"
       HASURA_GRAPHQL_ADMIN_SECRET: ${HASURA_ADMIN_PASSWORD}
@@ -81,7 +81,7 @@ services:
         condition: service_healthy
     command: >
       snoop
-      --database "mongodb://root:random@mongo"
+      --database "mongodb://root:${DATABASE_PASSWORD}@mongo"
       --rpc ${RPC_ENDPOINT}
       --batch-size ${BATCH_SIZE-50}
     restart: always
