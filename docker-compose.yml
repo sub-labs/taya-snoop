@@ -3,11 +3,6 @@ services:
     image: mongo:latest
     container_name: mongo
     restart: always
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo mongodb://root:${DATABASE_PASSWORD}@localhost:27017 --quiet
-      interval: 30s
-      timeout: 10s
-      retries: 5
     ports:
       - "27017:27017"
     environment:
@@ -38,8 +33,6 @@ services:
     container_name: hasura-mongo-connector
     restart: always
     depends_on:
-      mongo:
-        condition: service_healthy
       postgres:
         condition: service_healthy
     ports:
@@ -68,8 +61,7 @@ services:
     image: snoop
     container_name: indexer
     depends_on:
-      mongo:
-        condition: service_healthy
+      - mongo
     command: >
       snoop
       --database "mongodb://root:${DATABASE_PASSWORD}@mongo"
