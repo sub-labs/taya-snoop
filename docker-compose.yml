@@ -44,6 +44,7 @@ services:
         condition: service_healthy
     ports:
       - "3000:3000"
+      - "4318:4318"
     environment:
       MONGO_URL: "mongodb://root:${DATABASE_PASSWORD}@mongodb:27017"
 
