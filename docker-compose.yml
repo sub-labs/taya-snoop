@@ -53,8 +53,6 @@ services:
     container_name: hasura
     restart: always
     depends_on:
-      hasura-mongo-connector:
-        condition: service_healthy
       postgres:
         condition: service_healthy
     ports:
