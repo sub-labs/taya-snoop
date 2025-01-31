@@ -12,18 +12,17 @@ services:
     volumes:
       - ./data/mongo/:/data/db
     healthcheck:
-      test:
-        [
-          "CMD",
-          "mongosh",
-          "--quiet",
-          "root:${DATABASE_PASSWORD}@127.0.0.1/test",
-          "--eval",
-          "'quit(db.runCommand({ ping: 1 }).ok ? 0 : 2)'",
-        ]
+      test: >
+        CMD-SHELL mongosh 
+          --username root 
+          --password ${DATABASE_PASSWORD} 
+          --authenticationDatabase admin 
+          --eval 'db.runCommand({ ping: 1 })'
+          --quiet 
+        || exit 1
       interval: 10s
-      timeout: 10s
-      retries: 5
+      timeout: 5s
+      retries: 3
       start_period: 10s
       
   postgres:
