@@ -42,8 +42,6 @@ docker compose up
 
 | Flag           |  Default  | Purpose                                                                      |
 | -------------- | :-------: | -----------------------------------------------------------------------------|
-| `--debug`      |   false   | Enables verbose (debug-level) logging output.                                |
-| `--chain`      | `mainnet` | Specifies the target chain/network to index (e.g. 'mainnet', 'testnet').     |
 | `--rpc`        |  `empty`  | URL of the RPC endpoint to fetch chain data and logs.                        |
 | `--database`   |  `empty`  | MongoDB connection URL (e.g. 'mongodb://user:password@host:27017/dbname').   |
 | `--batch-size` |   `50`    | Number of blocks to fetch in each batch of logs.                             |
