@@ -2,9 +2,6 @@ services:
   indexer:
     image: snoop
     container_name: indexer
-    depends_on:
-      mongo:
-        condition: service_healthy
     command: >
       snoop
       --database "${DATABASE_URL}"
