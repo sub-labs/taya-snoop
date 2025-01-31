@@ -7,7 +7,7 @@ services:
       - "27017:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: ${DATABASE_PASSWORD}
+      MONGO_INITDB_ROOT_PASSWORD: random
     env_file: "./.env"
     volumes:
       - ./data/mongo/:/data/db
@@ -15,7 +15,7 @@ services:
       test: >
         CMD-SHELL mongosh 
           --username root 
-          --password ${DATABASE_PASSWORD} 
+          --password random
           --authenticationDatabase admin 
           --eval 'db.runCommand({ ping: 1 })'
           --quiet 
