@@ -27,7 +27,11 @@ async fn is_complete_mint(mint_id: String, db: &Database) -> bool {
     mint.sender == Address::ZERO.to_string()
 }
 
-pub async fn handle_transfer(log: Log, db: &Database) {
+pub async fn handle_transfer(
+    log: Log,
+    block_timestamp: i64,
+    db: &Database,
+) {
     let event = Transfer::decode_log(&log.inner, true).unwrap();
 
     if event.from == Address::ZERO
@@ -48,7 +52,6 @@ pub async fn handle_transfer(log: Log, db: &Database) {
         convert_token_to_decimal(&parse_uint256(event.value), &u256!(18));
 
     let block_number = log.block_number.unwrap() as i64;
-    let block_timestamp = log.block_timestamp.unwrap() as i64;
 
     let mut transaction = match db.get_transaction(&transaction_hash).await
     {

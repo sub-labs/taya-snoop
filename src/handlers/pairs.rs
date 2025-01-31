@@ -69,12 +69,11 @@ pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
             count_tokens += 1;
         }
 
+        let block_number = log.block_number.unwrap() as i64;
+        let block_timestamp = rpc.get_block_timestamp(block_number).await;
+
         // Create the pair data
-        let pair = DatabasePair::new(
-            event,
-            log.block_timestamp.unwrap_or(0) as i64,
-            log.block_number.unwrap_or(0) as i64,
-        );
+        let pair = DatabasePair::new(event, block_timestamp, block_number);
 
         // Store the factory and the new pair
         db.update_factory(&factory).await;

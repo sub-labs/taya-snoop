@@ -91,26 +91,32 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
             let mut count_transfers = 0;
 
             event_logs.sort_unstable_by_key(|log| {
-                let block_num = log.block_number.unwrap_or_default();
-                let log_index = log.log_index.unwrap_or_default();
-                (block_num, log_index)
+                let block_number = log.block_number.unwrap();
+                let log_index = log.log_index.unwrap();
+                (block_number, log_index)
             });
 
             for log in event_logs {
                 match log.topic0() {
                     Some(topic_raw) => {
+                        let block_number =
+                            log.block_number.unwrap() as i64;
+
+                        let block_timestamp =
+                            rpc.get_block_timestamp(block_number).await;
+
                         let topic = topic_raw.to_string();
 
                         if topic == Mint::SIGNATURE_HASH.to_string() {
-                            handle_mint(log, db).await;
+                            handle_mint(log, block_timestamp, db).await;
                             count_mints += 1;
                         } else if topic == Burn::SIGNATURE_HASH.to_string()
                         {
-                            handle_burn(log, db).await;
+                            handle_burn(log, block_timestamp, db).await;
                             count_burns += 1;
                         } else if topic == Swap::SIGNATURE_HASH.to_string()
                         {
-                            handle_swap(log, db).await;
+                            handle_swap(log, block_timestamp, db).await;
                             count_swaps += 1;
                         } else if topic == Sync::SIGNATURE_HASH.to_string()
                         {
@@ -119,7 +125,8 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
                         } else if topic
                             == Transfer::SIGNATURE_HASH.to_string()
                         {
-                            handle_transfer(log, db).await;
+                            handle_transfer(log, block_timestamp, db)
+                                .await;
                             count_transfers += 1;
                         }
                     }

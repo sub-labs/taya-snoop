@@ -240,11 +240,10 @@ pub async fn get_tracked_liquidity_usd(
 }
 
 pub async fn update_factory_day_data(
-    log: &Log,
     db: &Database,
+    timestamp: i64,
 ) -> DatabaseFactoryDayData {
     let factory = db.get_factory().await;
-    let timestamp = log.block_timestamp.unwrap() as i64;
     let day_id = timestamp / 86400;
     let day_start_timestamp = day_id * 86400;
 
@@ -268,9 +267,9 @@ pub async fn update_factory_day_data(
 
 pub async fn update_pair_day_data(
     log: &Log,
+    timestamp: i64,
     db: &Database,
 ) -> DatabasePairDayData {
-    let timestamp = log.block_timestamp.unwrap() as i64;
     let day_id = timestamp / 86400;
     let day_start_timestamp = day_id * 86400;
     let day_pair_id = format!("{}-{}", log.address(), day_id); // TODO: check if this is correct;
@@ -302,9 +301,9 @@ pub async fn update_pair_day_data(
 
 pub async fn update_pair_hour_data(
     log: &Log,
+    timestamp: i64,
     db: &Database,
 ) -> DatabasePairHourData {
-    let timestamp = log.block_timestamp.unwrap() as i64;
     let hour_index = timestamp / 3600;
     let hour_start_unix = hour_index * 3600;
     let hour_pair_id = format!("{}-{}", log.address(), hour_index); // TODO: check if this is correct;
@@ -334,11 +333,10 @@ pub async fn update_pair_hour_data(
 
 pub async fn update_token_day_data(
     token: &DatabaseToken,
-    log: &Log,
+    timestamp: i64,
     db: &Database,
 ) -> DatabaseTokenDayData {
     let bundle = db.get_bundle().await;
-    let timestamp = log.block_timestamp.unwrap() as i64;
     let day_id = timestamp / 86400;
     let day_start_timestamp = day_id * 86400;
     let token_day_id = format!("{}-{}", token.id, day_id);

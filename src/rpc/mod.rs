@@ -17,7 +17,7 @@ use alloy::{
     eips::BlockNumberOrTag,
     primitives::Address,
     providers::{Provider, ProviderBuilder, RootProvider},
-    rpc::types::{Filter, Log},
+    rpc::types::{BlockTransactionsKind, Filter, Log},
     sol_types::SolEvent,
     transports::http::{Client, Http},
 };
@@ -131,6 +131,20 @@ impl Rpc {
         };
 
         (name, symbol, total_supply, decimals)
+    }
+
+    pub async fn get_block_timestamp(&self, block_number: i64) -> i64 {
+        let block = self
+            .client
+            .get_block_by_number(
+                BlockNumberOrTag::Number(block_number as u64),
+                BlockTransactionsKind::Hashes,
+            )
+            .await
+            .unwrap()
+            .unwrap();
+
+        block.header.timestamp as i64
     }
 
     pub async fn get_pair_for_tokens(

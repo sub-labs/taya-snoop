@@ -29,7 +29,7 @@ sol! {
     );
 }
 
-pub async fn handle_swap(log: Log, db: &Database) {
+pub async fn handle_swap(log: Log, block_timestamp: i64, db: &Database) {
     let event = Swap::decode_log(&log.inner, true).unwrap();
 
     let mut pair = db.get_pair(&event.address.to_string()).await.unwrap();
@@ -133,7 +133,6 @@ pub async fn handle_swap(log: Log, db: &Database) {
 
     let transaction_hash = log.transaction_hash.unwrap().to_string();
     let block_number = log.block_number.unwrap() as i64;
-    let block_timestamp = log.block_timestamp.unwrap() as i64;
 
     let mut transaction = match db.get_transaction(&transaction_hash).await
     {
@@ -182,13 +181,16 @@ pub async fn handle_swap(log: Log, db: &Database) {
 
     db.update_transaction(&transaction).await;
 
-    let mut pair_day_data = update_pair_day_data(&log, db).await;
-    let mut pair_hour_data = update_pair_hour_data(&log, db).await;
-    let mut factory_day_data = update_factory_day_data(&log, db).await;
+    let mut pair_day_data =
+        update_pair_day_data(&log, block_timestamp, db).await;
+    let mut pair_hour_data =
+        update_pair_hour_data(&log, block_timestamp, db).await;
+    let mut factory_day_data =
+        update_factory_day_data(db, block_timestamp).await;
     let mut token0_day_data =
-        update_token_day_data(&token0, &log, db).await;
+        update_token_day_data(&token0, block_timestamp, db).await;
     let mut token1_day_data =
-        update_token_day_data(&token1, &log, db).await;
+        update_token_day_data(&token1, block_timestamp, db).await;
 
     factory_day_data.daily_volume_usd =
         factory_day_data.daily_volume_usd.add(tracked_amount_usd);

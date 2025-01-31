@@ -11,7 +11,7 @@ sol! {
     event Mint(address indexed sender, uint amount0, uint amount1);
 }
 
-pub async fn handle_mint(log: Log, db: &Database) {
+pub async fn handle_mint(log: Log, timestamp: i64, db: &Database) {
     let event = Mint::decode_log(&log.inner, true).unwrap();
 
     let transaction_hash = log.transaction_hash.unwrap().to_string();
@@ -80,9 +80,9 @@ pub async fn handle_mint(log: Log, db: &Database) {
 
     db.update_mint(&mint).await;
 
-    update_pair_day_data(&log, db).await;
-    update_pair_hour_data(&log, db).await;
-    update_factory_day_data(&log, db).await;
-    update_token_day_data(&token0, &log, db).await;
-    update_token_day_data(&token1, &log, db).await;
+    update_pair_day_data(&log, timestamp, db).await;
+    update_pair_hour_data(&log, timestamp, db).await;
+    update_factory_day_data(db, timestamp).await;
+    update_token_day_data(&token0, timestamp, db).await;
+    update_token_day_data(&token1, timestamp, db).await;
 }
