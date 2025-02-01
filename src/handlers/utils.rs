@@ -86,7 +86,7 @@ pub async fn find_eth_per_token(
     config: &Config,
 ) -> UD256 {
     if token.id == WETH_ADDRESS {
-        return udec256!(0);
+        return udec256!(1);
     }
 
     // Loop through a set of whitelisted tokens to check if there is any pair for this token.
@@ -94,13 +94,14 @@ pub async fn find_eth_per_token(
         let pair_address = rpc
             .get_pair_for_tokens(
                 token.id.clone(),
-                whitelist_token.to_owned(),
+                whitelist_token.to_owned().to_lowercase(),
                 config,
             )
             .await;
 
         if pair_address != Address::ZERO.to_string() {
             let pair = db.get_pair(&pair_address).await;
+
             if pair.is_none() {
                 continue;
             }
@@ -108,7 +109,7 @@ pub async fn find_eth_per_token(
             let pair = pair.unwrap();
 
             if pair.token0 == token.id
-                && pair.reserve_eth.ge(&MINIMUM_LIQUIDITY_THRESHOLD_ETH)
+                && pair.reserve_eth.gt(&MINIMUM_LIQUIDITY_THRESHOLD_ETH)
             {
                 let token0 = db.get_token(&pair.token0).await;
                 if token0.is_none() {
@@ -119,8 +120,9 @@ pub async fn find_eth_per_token(
 
                 return pair.token0_price.mul(token0.derived_eth);
             }
+
             if pair.token1 == token.id
-                && pair.reserve_eth.ge(&MINIMUM_LIQUIDITY_THRESHOLD_ETH)
+                && pair.reserve_eth.gt(&MINIMUM_LIQUIDITY_THRESHOLD_ETH)
             {
                 let token1 = db.get_token(&pair.token1).await;
                 if token1.is_none() {
@@ -150,7 +152,7 @@ pub async fn get_tracked_volume_usd(
     let price0 = token0.derived_eth.mul(bundle.eth_price);
     let price1 = token1.derived_eth.mul(bundle.eth_price);
 
-    if pair.liquidity_provider_count > 5 {
+    if pair.liquidity_provider_count < 5 {
         let reserve0_usd = pair.reserve0.mul(price0);
         let reserve1_usd = pair.reserve1.mul(price1);
 
@@ -272,9 +274,13 @@ pub async fn update_pair_day_data(
 ) -> DatabasePairDayData {
     let day_id = timestamp / 86400;
     let day_start_timestamp = day_id * 86400;
-    let day_pair_id = format!("{}-{}", log.address(), day_id); // TODO: check if this is correct;
+    let day_pair_id =
+        format!("{}-{}", log.address().to_string().to_lowercase(), day_id); // TODO: check if this is correct;
 
-    let pair = db.get_pair(&log.address().to_string()).await.unwrap();
+    let pair = db
+        .get_pair(&log.address().to_string().to_lowercase())
+        .await
+        .unwrap();
 
     let mut pair_day_data =
         match db.get_pair_day_data(&day_pair_id.to_string()).await {
@@ -306,9 +312,16 @@ pub async fn update_pair_hour_data(
 ) -> DatabasePairHourData {
     let hour_index = timestamp / 3600;
     let hour_start_unix = hour_index * 3600;
-    let hour_pair_id = format!("{}-{}", log.address(), hour_index); // TODO: check if this is correct;
+    let hour_pair_id = format!(
+        "{}-{}",
+        log.address().to_string().to_lowercase(),
+        hour_index
+    ); // TODO: check if this is correct;
 
-    let pair = db.get_pair(&log.address().to_string()).await.unwrap();
+    let pair = db
+        .get_pair(&log.address().to_string().to_lowercase())
+        .await
+        .unwrap();
 
     let mut pair_hour_data =
         match db.get_pair_hour_data(&hour_pair_id.to_string()).await {

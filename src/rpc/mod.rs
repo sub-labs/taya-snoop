@@ -165,5 +165,6 @@ impl Rpc {
             .unwrap()
             ._0
             .to_string()
+            .to_lowercase()
     }
 }

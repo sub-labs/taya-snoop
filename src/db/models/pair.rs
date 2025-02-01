@@ -40,8 +40,8 @@ impl DatabasePair {
     ) -> Self {
         Self {
             id: event.pair.to_string().to_lowercase(),
-            token0: event.token0.to_string(),
-            token1: event.token1.to_string(),
+            token0: event.token0.to_string().to_lowercase(),
+            token1: event.token1.to_string().to_lowercase(),
             reserve0: udec256!(0),
             reserve1: udec256!(0),
             total_supply: udec256!(0),
