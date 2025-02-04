@@ -1,6 +1,7 @@
 use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
+use fastnum::UD256;
 
-use crate::{db::Database, utils::format::parse_uint256};
+use crate::{db::Database, utils::format::parse_ud256};
 
 use super::utils::{
     convert_token_to_decimal, update_factory_day_data,
@@ -44,13 +45,13 @@ pub async fn handle_burn(log: Log, timestamp: i64, db: &Database) {
     let mut token1 = token1.unwrap();
 
     let token0_amount = convert_token_to_decimal(
-        &parse_uint256(event.amount0),
-        &token0.decimals,
+        &parse_ud256(event.amount0),
+        &UD256::from(token0.decimals),
     );
 
     let token1_amount = convert_token_to_decimal(
-        &parse_uint256(event.amount1),
-        &token1.decimals,
+        &parse_ud256(event.amount1),
+        &UD256::from(token1.decimals),
     );
 
     token0.tx_count += 1;

@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use fastnum::{u256, U256};
+use fastnum::{udec256, UD256};
 use log::info;
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
         burn::Burn, mint::Mint, pairs::PairCreated, swap::Swap,
         sync::Sync, transfer::Transfer,
     },
-    utils::format::parse_uint256,
+    utils::format::parse_ud256,
 };
 use alloy::{
     eips::BlockNumberOrTag,
@@ -106,7 +106,7 @@ impl Rpc {
     pub async fn get_token_information(
         &self,
         token: String,
-    ) -> (String, String, U256, U256) {
+    ) -> (String, String, UD256, u64) {
         let token =
             ERC20::new(Address::from_str(&token).unwrap(), &self.client);
 
@@ -120,14 +120,14 @@ impl Rpc {
             Err(_) => "UNKNOWN".to_owned(),
         };
 
-        let total_supply: U256 = match token.totalSupply().call().await {
-            Ok(total_supply) => parse_uint256(total_supply._0),
-            Err(_) => u256!(0),
+        let total_supply: UD256 = match token.totalSupply().call().await {
+            Ok(total_supply) => parse_ud256(total_supply._0),
+            Err(_) => udec256!(0),
         };
 
-        let decimals: U256 = match token.decimals().call().await {
-            Ok(decimals) => U256::from(decimals._0),
-            Err(_) => u256!(0),
+        let decimals: u64 = match token.decimals().call().await {
+            Ok(decimals) => decimals._0 as u64,
+            Err(_) => 0,
         };
 
         (name, symbol, total_supply, decimals)

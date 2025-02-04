@@ -1,5 +1,4 @@
-use crate::utils::format::SerU256;
-use fastnum::{udec256, U256, UD256};
+use fastnum::{udec256, UD256};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -9,10 +8,8 @@ pub struct DatabaseToken {
     pub id: String,
     pub symbol: String,
     pub name: String,
-    #[serde_as(as = "SerU256")]
-    pub decimals: U256,
-    #[serde_as(as = "SerU256")]
-    pub total_supply: U256,
+    pub decimals: u64,
+    pub total_supply: UD256,
     pub trade_volume: UD256,
     pub trade_volume_usd: UD256,
     pub untracked_volume_usd: UD256,
@@ -26,8 +23,8 @@ impl DatabaseToken {
         address: String,
         symbol: String,
         name: String,
-        decimals: U256,
-        total_supply: U256,
+        decimals: u64,
+        total_supply: UD256,
     ) -> Self {
         Self {
             id: address.to_lowercase(),

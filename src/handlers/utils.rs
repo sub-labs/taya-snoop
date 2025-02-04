@@ -14,7 +14,7 @@ use crate::{
     rpc::Rpc,
 };
 use alloy::{primitives::Address, rpc::types::Log};
-use fastnum::{decimal::Context, u256, udec256, U256, UD256};
+use fastnum::{decimal::Context, udec256, UD256};
 
 pub const MINIMUM_USD_THRESHOLD_NEW_PAIRS: UD256 = udec256!(400000);
 
@@ -378,21 +378,21 @@ pub async fn update_token_day_data(
     token_day_data
 }
 
-fn exponent_to_bigdecimal(decimals: &U256) -> UD256 {
-    let mut bd = u256!(1);
+fn exponent_to_bigdecimal(decimals: &UD256) -> UD256 {
+    let mut bd = udec256!(1);
 
-    let mut i = u256!(0);
+    let mut i = udec256!(0);
     while i < *decimals {
-        bd = bd.mul(u256!(10));
-        i += &u256!(1);
+        bd = bd.mul(udec256!(10));
+        i = i.add(udec256!(1));
     }
 
-    UD256::from_str(&bd.to_string(), Context::default()).unwrap()
+    bd
 }
 
 pub fn convert_token_to_decimal(
-    token_amount: &U256,
-    exchange_decimals: &U256,
+    token_amount: &UD256,
+    exchange_decimals: &UD256,
 ) -> UD256 {
     let token_amount_decimal =
         UD256::from_str(&token_amount.to_string(), Context::default())

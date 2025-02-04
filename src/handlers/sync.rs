@@ -1,8 +1,8 @@
 use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
-use fastnum::udec256;
+use fastnum::{udec256, UD256};
 
 use crate::{
-    configs::Config, db::Database, rpc::Rpc, utils::format::parse_uint112,
+    configs::Config, db::Database, rpc::Rpc, utils::format::parse_ud112,
 };
 
 use super::utils::{
@@ -40,13 +40,13 @@ pub async fn handle_sync(
     token1.total_liquidity = token1.total_liquidity.min(pair.reserve1);
 
     pair.reserve0 = convert_token_to_decimal(
-        &parse_uint112(event.reserve0),
-        &token0.decimals,
+        &parse_ud112(event.reserve0),
+        &UD256::from(token0.decimals),
     );
 
     pair.reserve1 = convert_token_to_decimal(
-        &parse_uint112(event.reserve1),
-        &token1.decimals,
+        &parse_ud112(event.reserve1),
+        &UD256::from(token1.decimals),
     );
 
     if pair.reserve0.ne(&udec256!(0)) {

@@ -1,5 +1,5 @@
 use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
-use fastnum::udec256;
+use fastnum::{udec256, UD256};
 
 use crate::{
     db::{
@@ -9,7 +9,7 @@ use crate::{
         },
         Database,
     },
-    utils::format::parse_uint256,
+    utils::format::parse_ud256,
 };
 
 use super::utils::{
@@ -45,23 +45,23 @@ pub async fn handle_swap(log: Log, block_timestamp: i64, db: &Database) {
     let mut token1 = token1.unwrap();
 
     let amount0_in = convert_token_to_decimal(
-        &parse_uint256(event.amount0In),
-        &token0.decimals,
+        &parse_ud256(event.amount0In),
+        &UD256::from(token0.decimals),
     );
 
     let amount1_in = convert_token_to_decimal(
-        &parse_uint256(event.amount1In),
-        &token1.decimals,
+        &parse_ud256(event.amount1In),
+        &UD256::from(token1.decimals),
     );
 
     let amount0_out = convert_token_to_decimal(
-        &parse_uint256(event.amount0Out),
-        &token0.decimals,
+        &parse_ud256(event.amount0Out),
+        &UD256::from(token0.decimals),
     );
 
     let amount1_out = convert_token_to_decimal(
-        &parse_uint256(event.amount1Out),
-        &token1.decimals,
+        &parse_ud256(event.amount1Out),
+        &UD256::from(token1.decimals),
     );
 
     let amount0_total = amount0_out.add(amount0_in);
