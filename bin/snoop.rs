@@ -1,3 +1,5 @@
+use std::{thread, time};
+
 use alloy::sol_types::SolEvent;
 use log::{info, LevelFilter};
 use simple_logger::SimpleLogger;
@@ -36,6 +38,7 @@ async fn main() {
 
     loop {
         sync_chain(&rpc, &db, &config).await;
+        thread::sleep(time::Duration::from_secs(1));
     }
 }
 

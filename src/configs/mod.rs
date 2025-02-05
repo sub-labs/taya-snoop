@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::chains::{get_chain, Chain};
-use alloy::{json_abi::Event, primitives::Address};
+use alloy::primitives::Address;
 use clap::{command, Parser};
 
 #[derive(Parser, Debug)]
@@ -42,11 +42,6 @@ pub struct IndexerArgs {
 }
 
 #[derive(Debug, Clone)]
-pub struct Subcontracts {
-    pub events: Vec<Event>,
-}
-
-#[derive(Debug, Clone)]
 pub struct Factory {
     pub address: Address,
     pub start_block: i64,
@@ -82,10 +77,10 @@ impl Config {
             rpc: args.rpc,
             factory: Factory {
                 address: Address::from_str(
-                    "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
+                    "0xf4a772216e9266d062cee940b13a709f3542247b",
                 )
                 .unwrap(),
-                start_block: 10000835,
+                start_block: 1864738,
             },
         }
     }
