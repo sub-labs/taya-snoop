@@ -38,7 +38,7 @@ async fn main() {
 
     loop {
         sync_chain(&rpc, &db, &config).await;
-        thread::sleep(time::Duration::from_secs(1));
+        thread::sleep(time::Duration::from_secs(10));
     }
 }
 
