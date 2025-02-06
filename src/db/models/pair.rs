@@ -7,6 +7,7 @@ use crate::handlers::pairs::PairCreated;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabasePair {
     pub id: String,
+    pub pair: String,
     pub token0: String,
     pub token1: String,
     pub reserve0: UD256,
@@ -25,11 +26,6 @@ pub struct DatabasePair {
     pub created_at_timestamp: i64,
     pub created_at_block_number: i64,
     pub liquidity_provider_count: i64,
-    // TODO: find a way to make the relationship
-    // pub pair_hour_data: Vec<String>,
-    // pub mints: Vec<String>,
-    // pub burns: Vec<String>,
-    // pub swaps: Vec<String>,
 }
 
 impl DatabasePair {
@@ -40,6 +36,7 @@ impl DatabasePair {
     ) -> Self {
         Self {
             id: event.pair.to_string().to_lowercase(),
+            pair: event.pair.to_string().to_lowercase(),
             token0: event.token0.to_string().to_lowercase(),
             token1: event.token1.to_string().to_lowercase(),
             reserve0: udec256!(0),

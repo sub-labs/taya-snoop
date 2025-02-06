@@ -16,25 +16,25 @@ use crate::{
 use alloy::{primitives::Address, rpc::types::Log};
 use fastnum::{decimal::Context, udec256, UD256};
 
-pub const MINIMUM_USD_THRESHOLD_NEW_PAIRS: UD256 = udec256!(400000);
+pub const MINIMUM_USD_THRESHOLD_NEW_PAIRS: UD256 = udec256!(50000);
 
 pub const MINIMUM_LIQUIDITY_THRESHOLD_ETH: UD256 = udec256!(2);
 
 pub const WHITELIST_TOKENS: [&str; 4] = [
-    "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", // WETH
-    "0xdac17f958d2ee523a2206206994597c13d831ec7", // USDT
-    "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", // USDC
-    "0x6b175474e89094c44da98b954eedeac495271d0f", // DAI
+    "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701", // WETH
+    "0x1ed9ca7e442a91591acecfb2d40e843e4fee00ff", // USDT
+    "0xff901f49b8864ad60cc5799cc9172ae0455ec1d3", // USDC
+    "0x2f1014530ed895245ecb5f9a79de023102f2e741", // DAI
 ];
 
 pub const WETH_ADDRESS: &str =
-    "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2";
+    "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701";
 pub const DAI_WETH_PAIR: &str =
-    "0xa478c2975ab1ea89e8196811f51a7b7ade33eb11";
+    "0x750152d4631cd5f06c1fd7c0bc935aa92b7adc2b";
 pub const USDC_WETH_PAIR: &str =
-    "0xb4e16d0168e52d35cacd2c6185b44281ec28c9dc";
+    "0x66367136ba1b3917f86aab7953839102a2428b2b";
 pub const USDT_WETH_PAIR: &str =
-    "0x0d4a11d5eeaac28ec3f61d100daf4d40471f1852";
+    "0xec1d5bbc9498115408a78a3f65a9188326b235af";
 
 pub async fn get_eth_price_usd(db: &Database) -> UD256 {
     let dai_pair = db.get_pair(DAI_WETH_PAIR).await;
