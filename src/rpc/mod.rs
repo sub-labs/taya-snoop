@@ -69,7 +69,7 @@ impl Rpc {
             .event(PairCreated::SIGNATURE);
 
         match self.client.get_logs(&filter).await {
-            Ok(logs) => logs,
+            Ok(logs) => Some(logs),
             Err(_) => None,
         }
     }
