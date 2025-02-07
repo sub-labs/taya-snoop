@@ -69,13 +69,17 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
         let first_block = block_chunk[0];
         let last_block = block_chunk[block_chunk.len() - 1];
 
-        let pair_logs = rpc
+        let pair_logs = match rpc
             .get_factory_logs_batch(
                 first_block as u64,
                 last_block as u64,
                 config,
             )
-            .await;
+            .await
+        {
+            Some(logs) => logs,
+            None => return,
+        };
 
         handle_pairs(pair_logs, db, rpc).await;
 

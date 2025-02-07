@@ -61,17 +61,17 @@ impl Rpc {
         first_block: u64,
         last_block: u64,
         config: &Config,
-    ) -> Vec<Log> {
+    ) -> Option<Vec<Log>> {
         let filter = Filter::new()
             .from_block(BlockNumberOrTag::Number(first_block))
             .to_block(BlockNumberOrTag::Number(last_block))
             .address(config.factory.address)
             .event(PairCreated::SIGNATURE);
 
-        self.client
-            .get_logs(&filter)
-            .await
-            .expect("unable to get logs from RPC")
+        match self.client.get_logs(&filter).await {
+            Ok(logs) => logs,
+            Err(_) => None,
+        }
     }
 
     pub async fn get_pairs_logs_batch(
