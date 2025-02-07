@@ -49,7 +49,10 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
         last_synced_block = config.factory.start_block
     }
 
-    let last_chain_block = rpc.get_last_block().await as i64;
+    let last_chain_block = match rpc.get_last_block().await {
+        Some(last_chain_block) => last_chain_block as i64,
+        None => return,
+    };
 
     let sync_blocks: Vec<i64> =
         (last_synced_block + 1..=last_chain_block).collect();

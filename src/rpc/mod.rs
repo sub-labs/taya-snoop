@@ -49,11 +49,11 @@ impl Rpc {
         Self { chain: config.chain.clone(), client }
     }
 
-    pub async fn get_last_block(&self) -> u64 {
-        self.client
-            .get_block_number()
-            .await
-            .expect("unable to get last block from RPC")
+    pub async fn get_last_block(&self) -> Option<u64> {
+        match self.client.get_block_number().await {
+            Ok(block) => Some(block),
+            Err(_) => None,
+        }
     }
 
     pub async fn get_factory_logs_batch(
