@@ -79,7 +79,7 @@ impl Rpc {
         pairs: &[String],
         first_block: u64,
         last_block: u64,
-    ) -> Vec<Log> {
+    ) -> Option<Vec<Log>> {
         let address_pairs: Vec<Address> = pairs
             .iter()
             .map(|pair| Address::from_str(pair).unwrap())
@@ -97,10 +97,10 @@ impl Rpc {
                 Transfer::SIGNATURE,
             ]);
 
-        self.client
-            .get_logs(&filter)
-            .await
-            .expect("unable to get logs from RPC")
+        match self.client.get_logs(&filter).await {
+            Ok(logs) => Some(logs),
+            Err(_) => None,
+        }
     }
 
     pub async fn get_token_information(

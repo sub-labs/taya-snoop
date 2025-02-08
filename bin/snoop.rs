@@ -86,13 +86,17 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
         let factory = db.get_factory().await;
 
         if !factory.pairs.is_empty() {
-            let mut event_logs = rpc
+            let mut event_logs = match rpc
                 .get_pairs_logs_batch(
                     &factory.pairs,
                     first_block as u64,
                     last_block as u64,
                 )
-                .await;
+                .await
+            {
+                Some(logs) => logs,
+                None => return,
+            };
 
             let mut count_mints = 0;
             let mut count_burns = 0;
