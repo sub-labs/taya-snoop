@@ -1,7 +1,4 @@
-use std::str::FromStr;
-
 use crate::chains::{get_chain, Chain};
-use alloy::primitives::Address;
 use clap::{command, Parser};
 
 #[derive(Parser, Debug)]
@@ -23,7 +20,7 @@ pub struct IndexerArgs {
 
     #[arg(
         long,
-        help = "PostgreSQL connection URL (e.g. 'postgres://user:password@host/dbname')."
+        help = "MongoDB connection URL (e.g. 'mongodb://user:password@host:27017/dbname')."
     )]
     pub database: String,
 
@@ -42,19 +39,12 @@ pub struct IndexerArgs {
 }
 
 #[derive(Debug, Clone)]
-pub struct Factory {
-    pub address: Address,
-    pub start_block: i64,
-}
-
-#[derive(Debug, Clone)]
 pub struct Config {
     pub batch_size: usize,
     pub chain: Chain,
     pub db_url: String,
     pub debug: bool,
     pub rpc: String,
-    pub factory: Factory,
 }
 
 impl Default for Config {
@@ -75,13 +65,6 @@ impl Config {
             db_url: args.database,
             debug: args.debug,
             rpc: args.rpc,
-            factory: Factory {
-                address: Address::from_str(
-                    "0xf4a772216e9266d062cee940b13a709f3542247b",
-                )
-                .unwrap(),
-                start_block: 1864738,
-            },
         }
     }
 }

@@ -65,7 +65,7 @@ pub async fn handle_sync(
 
     let mut bundle = db.get_bundle().await;
 
-    bundle.eth_price = get_eth_price_usd(db).await;
+    bundle.eth_price = get_eth_price_usd(db, config).await;
 
     db.update_bundle(&bundle).await;
 
@@ -87,6 +87,7 @@ pub async fn handle_sync(
             pair.reserve1,
             &token1,
             db,
+            config,
         )
         .await
     }

@@ -65,7 +65,7 @@ impl Rpc {
         let filter = Filter::new()
             .from_block(BlockNumberOrTag::Number(first_block))
             .to_block(BlockNumberOrTag::Number(last_block))
-            .address(config.factory.address)
+            .address(config.chain.factory)
             .event(PairCreated::SIGNATURE);
 
         match self.client.get_logs(&filter).await {
@@ -153,7 +153,7 @@ impl Rpc {
         token1: String,
         config: &Config,
     ) -> String {
-        let factory = FACTORY::new(config.factory.address, &self.client);
+        let factory = FACTORY::new(config.chain.factory, &self.client);
 
         factory
             .getPair(

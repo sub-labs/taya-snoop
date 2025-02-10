@@ -20,26 +20,21 @@ pub const MINIMUM_USD_THRESHOLD_NEW_PAIRS: UD256 = udec256!(50000);
 
 pub const MINIMUM_LIQUIDITY_THRESHOLD_ETH: UD256 = udec256!(2);
 
-pub const WHITELIST_TOKENS: [&str; 4] = [
-    "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701", // WETH
-    "0x1ed9ca7e442a91591acecfb2d40e843e4fee00ff", // USDT
-    "0xff901f49b8864ad60cc5799cc9172ae0455ec1d3", // USDC
-    "0x2f1014530ed895245ecb5f9a79de023102f2e741", // DAI
-];
+pub async fn get_eth_price_usd(db: &Database, config: &Config) -> UD256 {
+    let dai_pair = match config.chain.dai_weth_pair {
+        Some(pair) => db.get_pair(&pair.to_string()).await,
+        None => None,
+    };
 
-pub const WETH_ADDRESS: &str =
-    "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701";
-pub const DAI_WETH_PAIR: &str =
-    "0x750152d4631cd5f06c1fd7c0bc935aa92b7adc2b";
-pub const USDC_WETH_PAIR: &str =
-    "0x66367136ba1b3917f86aab7953839102a2428b2b";
-pub const USDT_WETH_PAIR: &str =
-    "0xec1d5bbc9498115408a78a3f65a9188326b235af";
+    let usdc_pair = match config.chain.usdc_weth_pair {
+        Some(pair) => db.get_pair(&pair.to_string()).await,
+        None => None,
+    };
 
-pub async fn get_eth_price_usd(db: &Database) -> UD256 {
-    let dai_pair = db.get_pair(DAI_WETH_PAIR).await;
-    let usdc_pair = db.get_pair(USDC_WETH_PAIR).await;
-    let usdt_pair = db.get_pair(USDT_WETH_PAIR).await;
+    let usdt_pair = match config.chain.usdt_weth_pair {
+        Some(pair) => db.get_pair(&pair.to_string()).await,
+        None => None,
+    };
 
     match (dai_pair, usdc_pair, usdt_pair) {
         (Some(dai), Some(usdc), Some(usdt)) => {
@@ -85,12 +80,12 @@ pub async fn find_eth_per_token(
     db: &Database,
     config: &Config,
 ) -> UD256 {
-    if token.id == WETH_ADDRESS {
+    if token.id == config.chain.weth.to_string() {
         return udec256!(1);
     }
 
     // Loop through a set of whitelisted tokens to check if there is any pair for this token.
-    for whitelist_token in WHITELIST_TOKENS {
+    for whitelist_token in config.chain.whitelist_tokens {
         let pair_address = rpc
             .get_pair_for_tokens(
                 token.id.clone(),
@@ -146,6 +141,7 @@ pub async fn get_tracked_volume_usd(
     token1: &DatabaseToken,
     pair: &DatabasePair,
     db: &Database,
+    config: &Config,
 ) -> UD256 {
     let bundle = db.get_bundle().await;
 
@@ -156,8 +152,8 @@ pub async fn get_tracked_volume_usd(
         let reserve0_usd = pair.reserve0.mul(price0);
         let reserve1_usd = pair.reserve1.mul(price1);
 
-        if WHITELIST_TOKENS.contains(&token0.id.as_str())
-            && WHITELIST_TOKENS.contains(&token1.id.as_str())
+        if config.chain.whitelist_tokens.contains(&token0.id.as_str())
+            && config.chain.whitelist_tokens.contains(&token1.id.as_str())
             && reserve0_usd
                 .add(reserve1_usd)
                 .lt(&MINIMUM_USD_THRESHOLD_NEW_PAIRS)
@@ -165,8 +161,8 @@ pub async fn get_tracked_volume_usd(
             return udec256!(0);
         }
 
-        if WHITELIST_TOKENS.contains(&token0.id.as_str())
-            && !WHITELIST_TOKENS.contains(&token1.id.as_str())
+        if config.chain.whitelist_tokens.contains(&token0.id.as_str())
+            && !config.chain.whitelist_tokens.contains(&token1.id.as_str())
             && reserve0_usd
                 .mul(udec256!(2))
                 .lt(&MINIMUM_USD_THRESHOLD_NEW_PAIRS)
@@ -174,8 +170,8 @@ pub async fn get_tracked_volume_usd(
             return udec256!(0);
         }
 
-        if !WHITELIST_TOKENS.contains(&token0.id.as_str())
-            && WHITELIST_TOKENS.contains(&token1.id.as_str())
+        if !config.chain.whitelist_tokens.contains(&token0.id.as_str())
+            && config.chain.whitelist_tokens.contains(&token1.id.as_str())
             && reserve1_usd
                 .mul(udec256!(2))
                 .lt(&MINIMUM_USD_THRESHOLD_NEW_PAIRS)
@@ -184,8 +180,8 @@ pub async fn get_tracked_volume_usd(
         }
     }
 
-    if WHITELIST_TOKENS.contains(&token0.id.as_str())
-        && WHITELIST_TOKENS.contains(&token1.id.as_str())
+    if config.chain.whitelist_tokens.contains(&token0.id.as_str())
+        && config.chain.whitelist_tokens.contains(&token1.id.as_str())
     {
         return token_amount0
             .mul(price0)
@@ -193,14 +189,14 @@ pub async fn get_tracked_volume_usd(
             .div(udec256!(2));
     }
 
-    if WHITELIST_TOKENS.contains(&token0.id.as_str())
-        && !WHITELIST_TOKENS.contains(&token1.id.as_str())
+    if config.chain.whitelist_tokens.contains(&token0.id.as_str())
+        && !config.chain.whitelist_tokens.contains(&token1.id.as_str())
     {
         return token_amount0.mul(price0);
     }
 
-    if !WHITELIST_TOKENS.contains(&token0.id.as_str())
-        && WHITELIST_TOKENS.contains(&token1.id.as_str())
+    if !config.chain.whitelist_tokens.contains(&token0.id.as_str())
+        && config.chain.whitelist_tokens.contains(&token1.id.as_str())
     {
         return token_amount1.mul(price1);
     }
@@ -214,26 +210,27 @@ pub async fn get_tracked_liquidity_usd(
     token_amount1: UD256,
     token1: &DatabaseToken,
     db: &Database,
+    config: &Config,
 ) -> UD256 {
     let bundle = db.get_bundle().await;
 
     let price0 = token0.derived_eth.mul(bundle.eth_price);
     let price1 = token1.derived_eth.mul(bundle.eth_price);
 
-    if WHITELIST_TOKENS.contains(&token0.id.as_str())
-        && WHITELIST_TOKENS.contains(&token1.id.as_str())
+    if config.chain.whitelist_tokens.contains(&token0.id.as_str())
+        && config.chain.whitelist_tokens.contains(&token1.id.as_str())
     {
         return token_amount0.mul(price0).add(token_amount1.mul(price1));
     }
 
-    if WHITELIST_TOKENS.contains(&token0.id.as_str())
-        && !WHITELIST_TOKENS.contains(&token1.id.as_str())
+    if config.chain.whitelist_tokens.contains(&token0.id.as_str())
+        && !config.chain.whitelist_tokens.contains(&token1.id.as_str())
     {
         return token_amount0.mul(price0).mul(udec256!(2));
     }
 
-    if !WHITELIST_TOKENS.contains(&token0.id.as_str())
-        && !WHITELIST_TOKENS.contains(&token1.id.as_str())
+    if !config.chain.whitelist_tokens.contains(&token0.id.as_str())
+        && !config.chain.whitelist_tokens.contains(&token1.id.as_str())
     {
         return token_amount1.mul(price1).mul(udec256!(2));
     }

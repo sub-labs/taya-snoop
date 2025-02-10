@@ -45,8 +45,8 @@ async fn main() {
 async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
     let mut last_synced_block = db.get_last_block_indexed().await;
 
-    if last_synced_block < config.factory.start_block {
-        last_synced_block = config.factory.start_block
+    if last_synced_block < config.chain.start_block {
+        last_synced_block = config.chain.start_block
     }
 
     let last_chain_block = match rpc.get_last_block().await {
@@ -130,7 +130,8 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
                             count_burns += 1;
                         } else if topic == Swap::SIGNATURE_HASH.to_string()
                         {
-                            handle_swap(log, block_timestamp, db).await;
+                            handle_swap(log, block_timestamp, db, config)
+                                .await;
                             count_swaps += 1;
                         } else if topic == Sync::SIGNATURE_HASH.to_string()
                         {

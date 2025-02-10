@@ -2,6 +2,7 @@ use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
 use fastnum::{udec256, UD256};
 
 use crate::{
+    configs::Config,
     db::{
         models::{
             swap::{DatabaseSwap, SwapAmounts, SwapData},
@@ -29,7 +30,12 @@ sol! {
     );
 }
 
-pub async fn handle_swap(log: Log, block_timestamp: i64, db: &Database) {
+pub async fn handle_swap(
+    log: Log,
+    block_timestamp: i64,
+    db: &Database,
+    config: &Config,
+) {
     let event = Swap::decode_log(&log.inner, true).unwrap();
 
     let mut pair = db.get_pair(&event.address.to_string()).await.unwrap();
@@ -84,6 +90,7 @@ pub async fn handle_swap(log: Log, block_timestamp: i64, db: &Database) {
         &token1,
         &pair,
         db,
+        config,
     )
     .await;
 
