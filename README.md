@@ -2,10 +2,10 @@
 <strong>Taya Snoop</strong>
 </h1>
 <p align="center">
-<strong>Taya logs and event indexer based on ETH Snoop</strong>
+<strong>Taya events indexer and pricing calculator</strong>
 </p>
 
-![build](https://github.com/eabz/eth-snoop/actions/workflows/build.yml/badge.svg)
+![build](https://github.com/sub-labs/taya-snoop/actions/workflows/build.yml/badge.svg)
 
 
 ## Build
@@ -15,7 +15,7 @@ You can try the indexer locally or using Docker.
 1. Clone the repository
 
 ```
-git clone https://github.com/eabz/eth-snoop && cd eth-snoop
+git clone https://github.com/sub-labs/taya-snoop && cd taya-snoop
 ```
 
 2. Build the program

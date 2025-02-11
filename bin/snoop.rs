@@ -1,4 +1,4 @@
-use std::{thread, time};
+use std::{collections::HashMap, thread, time};
 
 use alloy::sol_types::SolEvent;
 use log::{info, LevelFilter};
@@ -110,14 +110,31 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
                 (block_number, log_index)
             });
 
+            let mut block_timestamps: HashMap<i64, i64> = HashMap::new();
+
             for log in event_logs {
                 match log.topic0() {
                     Some(topic_raw) => {
                         let block_number =
                             log.block_number.unwrap() as i64;
 
-                        let block_timestamp =
-                            rpc.get_block_timestamp(block_number).await;
+                        let block_timestamp = match block_timestamps
+                            .get(&block_number)
+                        {
+                            Some(block_timestamp) => {
+                                block_timestamp.to_owned()
+                            }
+                            None => {
+                                let block_timestamp = rpc
+                                    .get_block_timestamp(block_number)
+                                    .await;
+
+                                block_timestamps
+                                    .insert(block_number, block_timestamp);
+
+                                block_timestamp
+                            }
+                        };
 
                         let topic = topic_raw.to_string();
 

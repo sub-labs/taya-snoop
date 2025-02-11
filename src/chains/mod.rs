@@ -22,10 +22,10 @@ pub const TESTNET: Chain = Chain {
     start_block: 1864738,
     weth: address!("0x760afe86e5de5fa0ee542fc7b7b713e1c5425701"),
     whitelist_tokens: &[
-        "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701",
-        "0x1ed9ca7e442a91591acecfb2d40e843e4fee00ff",
-        "0xff901f49b8864ad60cc5799cc9172ae0455ec1d3",
-        "0x2f1014530ed895245ecb5f9a79de023102f2e741",
+        "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701", // WETH
+        "0x1ed9ca7e442a91591acecfb2d40e843e4fee00ff", // USDT
+        "0xff901f49b8864ad60cc5799cc9172ae0455ec1d3", // USDC
+        "0x2f1014530ed895245ecb5f9a79de023102f2e741", // DAI
     ],
     dai_weth_pair: Some(address!(
         "0x750152d4631cd5f06c1fd7c0bc935aa92b7adc2b"
