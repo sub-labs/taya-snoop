@@ -19,22 +19,19 @@ pub const TESTNET: Chain = Chain {
     id: 10143,
     name: "testnet",
     factory: address!("0xf4a772216e9266d062cee940b13a709f3542247b"),
-    start_block: 1864738,
+    start_block: 4047384,
     weth: address!("0x760afe86e5de5fa0ee542fc7b7b713e1c5425701"),
     whitelist_tokens: &[
         "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701", // WETH
-        "0x1ed9ca7e442a91591acecfb2d40e843e4fee00ff", // USDT
-        "0xff901f49b8864ad60cc5799cc9172ae0455ec1d3", // USDC
-        "0x2f1014530ed895245ecb5f9a79de023102f2e741", // DAI
+        "0xddb9439df327910f9290a601f20bde775d856863", // tayUSDC
+        "0xba7ccc60e4d15f3f71bff29771746e852eebeffe", // tayUSDT
     ],
-    dai_weth_pair: Some(address!(
-        "0x750152d4631cd5f06c1fd7c0bc935aa92b7adc2b"
-    )),
+    dai_weth_pair: None,
     usdc_weth_pair: Some(address!(
-        "0x66367136ba1b3917f86aab7953839102a2428b2b"
+        "0x2ae000ddc4c47f542eb4a8b7d9213ac421877ab7"
     )),
     usdt_weth_pair: Some(address!(
-        "0xec1d5bbc9498115408a78a3f65a9188326b235af"
+        "0x8b52b43d2a90e79cd1cf1e204adb36df58658206"
     )),
 };
 
