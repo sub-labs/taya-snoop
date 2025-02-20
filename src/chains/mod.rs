@@ -19,7 +19,7 @@ pub const TESTNET: Chain = Chain {
     id: 10143,
     name: "testnet",
     factory: address!("0xf4a772216e9266d062cee940b13a709f3542247b"),
-    start_block: 4047384,
+    start_block: 4047383,
     weth: address!("0x760afe86e5de5fa0ee542fc7b7b713e1c5425701"),
     whitelist_tokens: &[
         "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701", // WETH
