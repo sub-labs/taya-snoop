@@ -1,41 +1,27 @@
-use fastnum::UD256;
-use serde::{Deserialize, Serialize};
+use bigdecimal::BigDecimal;
+use diesel::{Insertable, Queryable};
 
-pub struct SwapAmounts {
-    pub amount0_in: UD256,
-    pub amount1_in: UD256,
-    pub amount0_out: UD256,
-    pub amount1_out: UD256,
-    pub amount_usd: UD256,
-}
+use crate::db::schema::swaps;
 
-pub struct SwapData {
-    pub pair: String,
-    pub sender: String,
-    pub to: String,
-    pub from: String,
-    pub log_index: i64,
-    pub transaction: String,
-    pub timestamp: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Queryable, Insertable, Debug, Clone)]
+#[diesel(table_name = swaps)]
 pub struct DatabaseSwap {
     pub id: String,
     pub transaction: String,
-    pub timestamp: i64,
+    pub timestamp: i32,
     pub pair: String,
     pub sender: String,
     pub from: String,
-    pub amount0_in: UD256,
-    pub amount1_in: UD256,
-    pub amount0_out: UD256,
-    pub amount1_out: UD256,
+    pub amount0_in: BigDecimal,
+    pub amount1_in: BigDecimal,
+    pub amount0_out: BigDecimal,
+    pub amount1_out: BigDecimal,
     pub to: String,
-    pub log_index: i64,
-    pub amount_usd: UD256,
+    pub log_index: i32,
+    pub amount_usd: BigDecimal,
 }
 
+/*
 impl DatabaseSwap {
     pub fn new(id: String, data: SwapData, amounts: SwapAmounts) -> Self {
         Self {
@@ -55,3 +41,4 @@ impl DatabaseSwap {
         }
     }
 }
+ */

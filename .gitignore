@@ -4,3 +4,4 @@
 volumes/
 config.toml
 data/
+local.db

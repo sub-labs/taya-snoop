@@ -1,20 +1,26 @@
-use fastnum::{udec256, UD256};
-use serde::{Deserialize, Serialize};
+use bigdecimal::BigDecimal;
+use diesel::{Insertable, Queryable};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatabaseFactoryDayData {
+use crate::db::schema::{
+    dex_day_data, pair_day_data, pair_hour_data, token_day_data,
+};
+
+#[derive(Queryable, Insertable, Debug, Clone)]
+#[diesel(table_name = dex_day_data)]
+pub struct DatabaseDexDayData {
     pub id: String,
-    pub date: i64,
-    pub daily_volume_eth: UD256,
-    pub daily_volume_usd: UD256,
-    pub daily_volume_untracked: UD256,
-    pub total_volume_eth: UD256,
-    pub total_liquidity_eth: UD256,
-    pub total_volume_usd: UD256,
-    pub total_liquidity_usd: UD256,
-    pub tx_count: i64,
+    pub date: i32,
+    pub daily_volume_eth: BigDecimal,
+    pub daily_volume_usd: BigDecimal,
+    pub daily_volume_untracked: BigDecimal,
+    pub total_volume_eth: BigDecimal,
+    pub total_liquidity_eth: BigDecimal,
+    pub total_volume_usd: BigDecimal,
+    pub total_liquidity_usd: BigDecimal,
+    pub tx_count: i32,
 }
 
+/*
 impl DatabaseFactoryDayData {
     pub fn new(day_id: String, timestamp: i64) -> Self {
         Self {
@@ -30,23 +36,24 @@ impl DatabaseFactoryDayData {
             tx_count: 0,
         }
     }
-}
+} */
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Queryable, Insertable, Debug, Clone)]
+#[diesel(table_name = pair_hour_data)]
 pub struct DatabasePairHourData {
     pub id: String,
-    pub hour_start_unix: i64,
+    pub hour_start_unix: i32,
     pub pair: String,
-    pub reserve0: UD256,
-    pub reserve1: UD256,
-    pub total_supply: UD256,
-    pub reserve_usd: UD256,
-    pub hourly_volume_token0: UD256,
-    pub hourly_volume_token1: UD256,
-    pub hourly_volume_usd: UD256,
-    pub hourly_txns: i64,
+    pub reserve0: BigDecimal,
+    pub reserve1: BigDecimal,
+    pub total_supply: BigDecimal,
+    pub reserve_usd: BigDecimal,
+    pub hourly_volume_token0: BigDecimal,
+    pub hourly_volume_token1: BigDecimal,
+    pub hourly_volume_usd: BigDecimal,
+    pub hourly_txns: i32,
 }
-
+/*
 impl DatabasePairHourData {
     pub fn new(
         hour_pair_id: String,
@@ -67,25 +74,26 @@ impl DatabasePairHourData {
             hourly_txns: 0,
         }
     }
-}
+} */
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Queryable, Insertable, Debug, Clone)]
+#[diesel(table_name = pair_day_data)]
 pub struct DatabasePairDayData {
     pub id: String,
-    pub date: i64,
+    pub date: i32,
     pub pair_address: String,
     pub token0: String,
     pub token1: String,
-    pub reserve0: UD256,
-    pub reserve1: UD256,
-    pub total_supply: UD256,
-    pub reserve_usd: UD256,
-    pub daily_volume_token0: UD256,
-    pub daily_volume_token1: UD256,
-    pub daily_volume_usd: UD256,
-    pub daily_txns: i64,
+    pub reserve0: BigDecimal,
+    pub reserve1: BigDecimal,
+    pub total_supply: BigDecimal,
+    pub reserve_usd: BigDecimal,
+    pub daily_volume_token0: BigDecimal,
+    pub daily_volume_token1: BigDecimal,
+    pub daily_volume_usd: BigDecimal,
+    pub daily_txns: i32,
 }
-
+/*
 impl DatabasePairDayData {
     pub fn new(
         day_pair_id: String,
@@ -110,23 +118,24 @@ impl DatabasePairDayData {
             daily_txns: 0,
         }
     }
-}
+} */
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Queryable, Insertable, Debug, Clone)]
+#[diesel(table_name = token_day_data)]
 pub struct DatabaseTokenDayData {
     pub id: String,
-    pub date: i64,
+    pub date: i32,
     pub token: String,
-    pub daily_volume_token: UD256,
-    pub daily_volume_eth: UD256,
-    pub daily_volume_usd: UD256,
-    pub daily_txns: i64,
-    pub total_liquidity_token: UD256,
-    pub total_liquidity_eth: UD256,
-    pub total_liquidity_usd: UD256,
-    pub price_usd: UD256,
+    pub daily_volume_token: BigDecimal,
+    pub daily_volume_eth: BigDecimal,
+    pub daily_volume_usd: BigDecimal,
+    pub daily_txns: i32,
+    pub total_liquidity_token: BigDecimal,
+    pub total_liquidity_eth: BigDecimal,
+    pub total_liquidity_usd: BigDecimal,
+    pub price_usd: BigDecimal,
 }
-
+/*
 impl DatabaseTokenDayData {
     pub fn new(
         token_day_id: String,
@@ -149,3 +158,4 @@ impl DatabaseTokenDayData {
         }
     }
 }
+ */

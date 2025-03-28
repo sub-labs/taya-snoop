@@ -1,23 +1,25 @@
-use fastnum::{udec256, UD256};
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
+use bigdecimal::BigDecimal;
+use diesel::{Insertable, Queryable};
 
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatabaseToken {
+use crate::db::schema::tokens;
+
+#[derive(Queryable, Insertable, Debug, Clone)]
+#[diesel(table_name = tokens)]
+pub struct Token {
     pub id: String,
     pub symbol: String,
     pub name: String,
-    pub decimals: u64,
-    pub total_supply: UD256,
-    pub trade_volume: UD256,
-    pub trade_volume_usd: UD256,
-    pub untracked_volume_usd: UD256,
-    pub tx_count: i64,
-    pub total_liquidity: UD256,
-    pub derived_eth: UD256,
+    pub decimals: i32,
+    pub total_supply: BigDecimal,
+    pub trade_volume: BigDecimal,
+    pub trade_volume_usd: BigDecimal,
+    pub untracked_volume_usd: BigDecimal,
+    pub tx_count: i32,
+    pub total_liquidity: BigDecimal,
+    pub derived_eth: BigDecimal,
 }
 
+/*
 impl DatabaseToken {
     pub fn new(
         address: String,
@@ -41,3 +43,4 @@ impl DatabaseToken {
         }
     }
 }
+ */

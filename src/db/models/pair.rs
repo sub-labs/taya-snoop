@@ -1,33 +1,33 @@
-use alloy::primitives::Log;
-use fastnum::{udec256, UD256};
-use serde::{Deserialize, Serialize};
+use bigdecimal::BigDecimal;
+use diesel::{Insertable, Queryable};
 
-use crate::handlers::pairs::PairCreated;
+use crate::db::schema::pairs;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Queryable, Insertable, Debug, Clone)]
+#[diesel(table_name = pairs)]
 pub struct DatabasePair {
     pub id: String,
-    pub pair: String,
     pub token0: String,
     pub token1: String,
-    pub reserve0: UD256,
-    pub reserve1: UD256,
-    pub total_supply: UD256,
-    pub reserve_eth: UD256,
-    pub reserve_usd: UD256,
-    pub tracked_reserve_eth: UD256,
-    pub token0_price: UD256,
-    pub token1_price: UD256,
-    pub volume_token0: UD256,
-    pub volume_token1: UD256,
-    pub volume_usd: UD256,
-    pub untracked_volume_usd: UD256,
-    pub tx_count: i64,
-    pub created_at_timestamp: i64,
-    pub created_at_block_number: i64,
-    pub liquidity_provider_count: i64,
+    pub reserve0: BigDecimal,
+    pub reserve1: BigDecimal,
+    pub total_supply: BigDecimal,
+    pub reserve_eth: BigDecimal,
+    pub reserve_usd: BigDecimal,
+    pub tracked_reserve_eth: BigDecimal,
+    pub token0_price: BigDecimal,
+    pub token1_price: BigDecimal,
+    pub volume_token0: BigDecimal,
+    pub volume_token1: BigDecimal,
+    pub volume_usd: BigDecimal,
+    pub untracked_volume_usd: BigDecimal,
+    pub tx_count: i32,
+    pub created_at_timestamp: i32,
+    pub created_at_block_number: i32,
+    pub liquidity_provider_count: i32,
 }
 
+/*
 impl DatabasePair {
     pub fn new(
         event: Log<PairCreated>,
@@ -58,3 +58,4 @@ impl DatabasePair {
         }
     }
 }
+ */

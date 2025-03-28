@@ -1,4 +1,5 @@
 pub mod models;
+pub mod schema;
 
 use crate::chains::Chain;
 

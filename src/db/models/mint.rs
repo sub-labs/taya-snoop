@@ -1,24 +1,27 @@
-use alloy::primitives::Address;
-use fastnum::{udec256, UD256};
-use serde::{Deserialize, Serialize};
+use bigdecimal::BigDecimal;
+use diesel::{Insertable, Queryable};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+use crate::db::schema::mints;
+
+#[derive(Queryable, Insertable, Debug, Clone)]
+#[diesel(table_name = mints)]
 pub struct DatabaseMint {
     pub id: String,
     pub transaction: String,
-    pub timestamp: i64,
+    pub timestamp: i32,
     pub pair: String,
     pub to: String,
-    pub liquidity: UD256,
+    pub liquidity: BigDecimal,
     pub sender: String,
-    pub amount0: UD256,
-    pub amount1: UD256,
-    pub log_index: i64,
-    pub amount_usd: UD256,
+    pub amount0: BigDecimal,
+    pub amount1: BigDecimal,
+    pub log_index: i32,
+    pub amount_usd: BigDecimal,
     pub fee_to: String,
-    pub fee_liquidity: UD256,
+    pub fee_liquidity: BigDecimal,
 }
 
+/*
 impl DatabaseMint {
     pub fn new(
         id: String,
@@ -45,3 +48,4 @@ impl DatabaseMint {
         }
     }
 }
+ */

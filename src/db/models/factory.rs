@@ -1,21 +1,21 @@
-use fastnum::{udec256, UD256};
-use serde::{Deserialize, Serialize};
+use bigdecimal::BigDecimal;
+use diesel::{Insertable, Queryable};
 
-use crate::db::DatabaseKeys;
+use crate::db::schema::factories;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatabaseFactory {
+#[derive(Queryable, Insertable, Debug, Clone)]
+#[diesel(table_name = factories)]
+pub struct DatabaseDatabaseFactory {
     pub id: String,
     pub pair_count: i32,
-    pub total_volume_usd: UD256,
-    pub total_volume_eth: UD256,
-    pub untracked_volume_usd: UD256,
-    pub total_liquidity_usd: UD256,
-    pub total_liquidity_eth: UD256,
-    pub tx_count: i64,
-    pub pairs: Vec<String>,
+    pub total_volume_usd: BigDecimal,
+    pub total_volume_eth: BigDecimal,
+    pub untracked_volume_usd: BigDecimal,
+    pub total_liquidity_usd: BigDecimal,
+    pub total_liquidity_eth: BigDecimal,
+    pub tx_count: i32,
 }
-
+/*
 impl Default for DatabaseFactory {
     fn default() -> Self {
         Self::new()
@@ -33,7 +33,7 @@ impl DatabaseFactory {
             total_liquidity_usd: udec256!(0),
             total_liquidity_eth: udec256!(0),
             tx_count: 0,
-            pairs: vec![],
         }
     }
 }
+ */
