@@ -1,9 +1,11 @@
+use alloy::primitives::Address;
 use bigdecimal::BigDecimal;
 use diesel::{Insertable, Queryable};
+use field_count::FieldCount;
 
-use crate::db::schema::mints;
+use crate::{db::schema::mints, utils::format::zero_bd};
 
-#[derive(Queryable, Insertable, Debug, Clone)]
+#[derive(Queryable, Insertable, Debug, Clone, FieldCount)]
 #[diesel(table_name = mints)]
 pub struct DatabaseMint {
     pub id: String,
@@ -21,15 +23,14 @@ pub struct DatabaseMint {
     pub fee_liquidity: BigDecimal,
 }
 
-/*
 impl DatabaseMint {
     pub fn new(
         id: String,
         transaction: String,
-        timestamp: i64,
+        timestamp: i32,
         pair: String,
         to: String,
-        log_index: i64,
+        log_index: i32,
     ) -> Self {
         Self {
             id,
@@ -37,15 +38,14 @@ impl DatabaseMint {
             timestamp,
             pair,
             to,
-            liquidity: udec256!(0),
+            liquidity: zero_bd(),
             sender: Address::ZERO.to_string(),
-            amount0: udec256!(0),
-            amount1: udec256!(0),
+            amount0: zero_bd(),
+            amount1: zero_bd(),
             log_index,
-            amount_usd: udec256!(0),
+            amount_usd: zero_bd(),
             fee_to: Address::ZERO.to_string(),
-            fee_liquidity: udec256!(0),
+            fee_liquidity: zero_bd(),
         }
     }
 }
- */

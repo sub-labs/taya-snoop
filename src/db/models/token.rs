@@ -1,11 +1,12 @@
 use bigdecimal::BigDecimal;
 use diesel::{Insertable, Queryable};
+use field_count::FieldCount;
 
-use crate::db::schema::tokens;
+use crate::{db::schema::tokens, utils::format::zero_bd};
 
-#[derive(Queryable, Insertable, Debug, Clone)]
+#[derive(Queryable, Insertable, Debug, Clone, FieldCount)]
 #[diesel(table_name = tokens)]
-pub struct Token {
+pub struct DatabaseToken {
     pub id: String,
     pub symbol: String,
     pub name: String,
@@ -19,14 +20,13 @@ pub struct Token {
     pub derived_eth: BigDecimal,
 }
 
-/*
 impl DatabaseToken {
     pub fn new(
         address: String,
         symbol: String,
         name: String,
-        decimals: u64,
-        total_supply: UD256,
+        decimals: i32,
+        total_supply: BigDecimal,
     ) -> Self {
         Self {
             id: address.to_lowercase(),
@@ -34,13 +34,12 @@ impl DatabaseToken {
             name,
             decimals,
             total_supply,
-            trade_volume: udec256!(0),
-            trade_volume_usd: udec256!(0),
-            untracked_volume_usd: udec256!(0),
+            trade_volume: zero_bd(),
+            trade_volume_usd: zero_bd(),
+            untracked_volume_usd: zero_bd(),
             tx_count: 0,
-            total_liquidity: udec256!(0),
-            derived_eth: udec256!(0),
+            total_liquidity: zero_bd(),
+            derived_eth: zero_bd(),
         }
     }
 }
- */

@@ -1,12 +1,13 @@
 use bigdecimal::BigDecimal;
 use diesel::{Insertable, Queryable};
+use field_count::FieldCount;
 
 use crate::{
     db::{schema::bundles, DatabaseKeys},
     utils::format::zero_bd,
 };
 
-#[derive(Queryable, Insertable, Debug, Clone)]
+#[derive(Queryable, Insertable, Debug, Clone, FieldCount)]
 #[diesel(table_name = bundles)]
 pub struct DatabaseBundle {
     pub id: String,

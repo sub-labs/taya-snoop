@@ -3,6 +3,13 @@ pub mod schema;
 
 use crate::chains::Chain;
 
+use diesel::{
+    Connection, ExpressionMethods, PgConnection, QueryDsl, QueryResult,
+    RunQueryDsl,
+};
+use diesel_migrations::{
+    embed_migrations, EmbeddedMigrations, MigrationHarness,
+};
 use log::*;
 use models::{
     bundle::DatabaseBundle,
@@ -19,17 +26,17 @@ use models::{
     token::DatabaseToken,
     transaction::DatabaseTransaction,
 };
-use mongodb::{
-    bson::{doc, to_document},
-    options::{ClientOptions, ServerApi, ServerApiVersion},
-    Client,
-};
+use mongodb::bson::{doc, to_document};
+use schema::sync_state::{self, id, last_block_indexed};
 use serde::{de::DeserializeOwned, Serialize};
+
+pub const MIGRATIONS: EmbeddedMigrations =
+    embed_migrations!("migrations/");
 
 #[derive(Clone)]
 pub struct Database {
     pub chain: Chain,
-    pub db: mongodb::Database,
+    pub db_url: String,
 }
 
 pub enum DatabaseKeys {
@@ -78,46 +85,29 @@ impl Database {
     pub async fn new(db_url: String, chain: Chain) -> Self {
         info!("Starting database service");
 
-        let mut client_options =
-            ClientOptions::parse(db_url).await.unwrap();
+        let mut db = PgConnection::establish(&db_url).unwrap();
 
-        let server_api =
-            ServerApi::builder().version(ServerApiVersion::V1).build();
-        client_options.server_api = Some(server_api);
+        db.run_pending_migrations(MIGRATIONS).unwrap();
 
-        let db = Client::with_options(client_options)
-            .unwrap()
-            .database(DATABASE);
-
-        Self { chain, db }
+        Self { chain, db_url }
     }
 
-    pub async fn get_last_block_indexed(&self) -> i64 {
-        let sync_state_key = DatabaseKeys::State.as_str();
+    pub fn get_connection(&self) -> PgConnection {
+        PgConnection::establish(&self.db_url)
+            .expect("unable to connect to the database")
+    }
 
-        let sync_state = self
-            .db
-            .collection::<DatabaseSyncState>(sync_state_key)
-            .find_one(doc! { "id": { "$eq": sync_state_key}})
-            .await
-            .unwrap();
+    pub async fn get_last_block_indexed(&self) -> i32 {
+        let mut connection = self.get_connection();
 
-        match sync_state {
-            Some(sync_state) => sync_state.last_block_indexed,
-            None => {
-                let new_sync_state = DatabaseSyncState {
-                    id: sync_state_key.to_owned(),
-                    last_block_indexed: 0,
-                };
+        let number: QueryResult<i32> = sync_state::dsl::sync_state
+            .select(sync_state::dsl::last_block_indexed)
+            .filter(id.eq("sync_state"))
+            .first::<i32>(&mut connection);
 
-                self.db
-                    .collection::<DatabaseSyncState>(sync_state_key)
-                    .insert_one(new_sync_state)
-                    .await
-                    .unwrap();
-
-                0
-            }
+        match number {
+            Ok(block) => block,
+            Err(_) => panic!("unable to get last synced block"),
         }
     }
 
@@ -249,19 +239,17 @@ impl Database {
 
     pub async fn update_last_block_indexed(
         &self,
-        new_last_block_number: i64,
+        new_last_block_number: i32,
     ) {
-        let sync_state_key = DatabaseKeys::State.as_str();
+        let mut connection = self.get_connection();
 
-        let filter = doc! { "id": sync_state_key };
-        let update = doc! { "$set": doc! {"last_block_indexed": new_last_block_number} };
-
-        self.db
-            .collection::<DatabaseSyncState>(sync_state_key)
-            .update_one(filter, update)
-            .upsert(true)
-            .await
-            .unwrap();
+        diesel::update(
+            sync_state::dsl::sync_state
+                .filter(id.eq(DatabaseKeys::State.as_str())),
+        )
+        .set(last_block_indexed.eq(&new_last_block_number))
+        .execute(&mut connection)
+        .expect("unable to update sync state into database");
     }
 
     pub async fn update_factory(&self, data: &DatabaseFactory) {

@@ -1,8 +1,9 @@
 use diesel::{Insertable, Queryable};
+use field_count::FieldCount;
 
 use crate::db::{schema::sync_state, DatabaseKeys};
 
-#[derive(Debug, Clone, Insertable, Queryable)]
+#[derive(Debug, Clone, Insertable, Queryable, FieldCount)]
 #[diesel(table_name = sync_state)]
 pub struct DatabaseSyncState {
     pub id: String,

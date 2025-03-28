@@ -1,9 +1,10 @@
 use bigdecimal::BigDecimal;
 use diesel::{Insertable, Queryable};
+use field_count::FieldCount;
 
 use crate::db::schema::swaps;
 
-#[derive(Queryable, Insertable, Debug, Clone)]
+#[derive(Queryable, Insertable, Debug, Clone, FieldCount)]
 #[diesel(table_name = swaps)]
 pub struct DatabaseSwap {
     pub id: String,
@@ -21,24 +22,36 @@ pub struct DatabaseSwap {
     pub amount_usd: BigDecimal,
 }
 
-/*
 impl DatabaseSwap {
-    pub fn new(id: String, data: SwapData, amounts: SwapAmounts) -> Self {
+    pub fn new(
+        id: String,
+        transaction: String,
+        timestamp: i32,
+        pair: String,
+        sender: String,
+        from: String,
+        amount0_in: BigDecimal,
+        amount1_in: BigDecimal,
+        amount0_out: BigDecimal,
+        amount1_out: BigDecimal,
+        log_index: i32,
+        amount_usd: BigDecimal,
+        to: String,
+    ) -> Self {
         Self {
             id,
-            transaction: data.transaction,
-            timestamp: data.timestamp,
-            pair: data.pair,
-            sender: data.sender,
-            from: data.from,
-            amount0_in: amounts.amount0_in,
-            amount1_in: amounts.amount1_in,
-            amount0_out: amounts.amount0_out,
-            amount1_out: amounts.amount1_out,
-            to: data.to,
-            log_index: data.log_index,
-            amount_usd: amounts.amount_usd,
+            transaction,
+            timestamp,
+            pair,
+            sender,
+            from,
+            amount0_in,
+            amount1_in,
+            amount0_out,
+            amount1_out,
+            to,
+            log_index,
+            amount_usd,
         }
     }
 }
- */
