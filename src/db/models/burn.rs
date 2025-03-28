@@ -1,12 +1,13 @@
 use alloy::primitives::Address;
 use bigdecimal::BigDecimal;
-use diesel::{Insertable, Queryable};
-use field_count::FieldCount;
+use diesel::{AsChangeset, Insertable, Queryable};
 
 use crate::{db::schema::burns, utils::format::zero_bd};
 
-#[derive(Queryable, Insertable, Debug, Clone, FieldCount)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = burns)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+
 pub struct DatabaseBurn {
     pub id: String,
     pub transaction: String,

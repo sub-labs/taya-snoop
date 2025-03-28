@@ -1,11 +1,12 @@
 use bigdecimal::BigDecimal;
-use diesel::{Insertable, Queryable};
-use field_count::FieldCount;
+use diesel::{AsChangeset, Insertable, Queryable};
 
 use crate::{db::schema::tokens, utils::format::zero_bd};
 
-#[derive(Queryable, Insertable, Debug, Clone, FieldCount)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = tokens)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+
 pub struct DatabaseToken {
     pub id: String,
     pub symbol: String,

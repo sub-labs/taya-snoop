@@ -1,6 +1,5 @@
 use bigdecimal::BigDecimal;
-use diesel::{Insertable, Queryable};
-use field_count::FieldCount;
+use diesel::{AsChangeset, Insertable, Queryable};
 
 use crate::{
     db::schema::{
@@ -9,8 +8,10 @@ use crate::{
     utils::format::zero_bd,
 };
 
-#[derive(Queryable, Insertable, Debug, Clone, FieldCount)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = dex_day_data)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+
 pub struct DatabaseDexDayData {
     pub id: String,
     pub date: i32,
@@ -41,8 +42,10 @@ impl DatabaseDexDayData {
     }
 }
 
-#[derive(Queryable, Insertable, Debug, Clone, FieldCount)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = pair_hour_data)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+
 pub struct DatabasePairHourData {
     pub id: String,
     pub hour_start_unix: i32,
@@ -79,8 +82,10 @@ impl DatabasePairHourData {
     }
 }
 
-#[derive(Queryable, Insertable, Debug, Clone, FieldCount)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = pair_day_data)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+
 pub struct DatabasePairDayData {
     pub id: String,
     pub date: i32,
@@ -123,8 +128,10 @@ impl DatabasePairDayData {
     }
 }
 
-#[derive(Queryable, Insertable, Debug, Clone, FieldCount)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = token_day_data)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+
 pub struct DatabaseTokenDayData {
     pub id: String,
     pub date: i32,

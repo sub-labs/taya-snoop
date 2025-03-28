@@ -1,10 +1,11 @@
-use diesel::{Insertable, Queryable};
-use field_count::FieldCount;
+use diesel::{AsChangeset, Insertable, Queryable};
 
 use crate::db::{schema::sync_state, DatabaseKeys};
 
-#[derive(Debug, Clone, Insertable, Queryable, FieldCount)]
+#[derive(Debug, Clone, Insertable, Queryable, AsChangeset)]
 #[diesel(table_name = sync_state)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+
 pub struct DatabaseSyncState {
     pub id: String,
     pub last_block_indexed: i32,

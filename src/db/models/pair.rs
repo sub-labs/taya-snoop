@@ -1,15 +1,16 @@
 use alloy::primitives::Log;
 use bigdecimal::BigDecimal;
-use diesel::{Insertable, Queryable};
-use field_count::FieldCount;
+use diesel::{AsChangeset, Insertable, Queryable};
 
 use crate::{
     abi::factory::FACTORY::PairCreated, db::schema::pairs,
     utils::format::zero_bd,
 };
 
-#[derive(Queryable, Insertable, Debug, Clone, FieldCount)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = pairs)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+
 pub struct DatabasePair {
     pub id: String,
     pub token0: String,

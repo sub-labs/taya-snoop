@@ -68,7 +68,7 @@ diesel::table! {
         log_index -> Int4,
         amount_usd -> Numeric,
         fee_to -> Text,
-        fee_liquidity -> Nullable<Numeric>,
+        fee_liquidity -> Numeric,
     }
 }
 

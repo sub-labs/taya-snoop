@@ -1,11 +1,12 @@
 use bigdecimal::BigDecimal;
-use diesel::{Insertable, Queryable};
-use field_count::FieldCount;
+use diesel::{AsChangeset, Insertable, Queryable};
 
 use crate::db::schema::swaps;
 
-#[derive(Queryable, Insertable, Debug, Clone, FieldCount)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = swaps)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+
 pub struct DatabaseSwap {
     pub id: String,
     pub transaction: String,

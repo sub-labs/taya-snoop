@@ -66,7 +66,7 @@ CREATE TABLE mints (
     log_index INTEGER NOT NULL,
     amount_usd NUMERIC NOT NULL,
     fee_to TEXT NOT NULL,
-    fee_liquidity NUMERIC,
+    fee_liquidity NUMERIC NOT NULL,
     CONSTRAINT transaction_data FOREIGN KEY (transaction) REFERENCES transactions(id),
     CONSTRAINT pair_data FOREIGN KEY (pair) REFERENCES pairs(id)
 );

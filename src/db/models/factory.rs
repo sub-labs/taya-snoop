@@ -1,14 +1,15 @@
 use bigdecimal::BigDecimal;
-use diesel::{Insertable, Queryable};
-use field_count::FieldCount;
+use diesel::{AsChangeset, Insertable, Queryable};
 
 use crate::{
     db::{schema::factories, DatabaseKeys},
     utils::format::zero_bd,
 };
 
-#[derive(Queryable, Insertable, Debug, Clone, FieldCount)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = factories)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+
 pub struct DatabaseFactory {
     pub id: String,
     pub pair_count: i32,
