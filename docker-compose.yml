@@ -3,7 +3,7 @@ services:
     container_name: graphql
     restart: always
     build:
-      context: ./graphql
+      context: ./docker/graphql
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,7 +33,7 @@ services:
   indexer:
     container_name: indexer
     build:
-      context: .
+      context: ./docker/snoop
     depends_on:
       postgres:
         condition: service_healthy
