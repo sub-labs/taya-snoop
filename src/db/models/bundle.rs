@@ -1,12 +1,17 @@
-use fastnum::{udec256, UD256};
-use serde::{Deserialize, Serialize};
+use bigdecimal::BigDecimal;
+use diesel::{AsChangeset, Insertable, Queryable};
 
-use crate::db::DatabaseKeys;
+use crate::{
+    db::{schema::bundles, DatabaseKeys},
+    utils::format::zero_bd,
+};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
+#[diesel(table_name = bundles)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct DatabaseBundle {
     pub id: String,
-    pub eth_price: UD256,
+    pub eth_price: BigDecimal,
 }
 
 impl Default for DatabaseBundle {
@@ -19,7 +24,7 @@ impl DatabaseBundle {
     pub fn new() -> Self {
         Self {
             id: DatabaseKeys::Bundle.as_str().to_owned(),
-            eth_price: udec256!(0),
+            eth_price: zero_bd(),
         }
     }
 }

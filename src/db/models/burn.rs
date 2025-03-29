@@ -1,58 +1,59 @@
-use alloy::primitives::Address;
-use fastnum::{udec256, UD256};
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
+use bigdecimal::BigDecimal;
+use diesel::{AsChangeset, Insertable, Queryable};
 
-pub struct BurnData {
-    pub sender: Option<String>,
-    pub liquidity: UD256,
-    pub pair: String,
-    pub to: Option<String>,
-    pub needs_complete: bool,
-}
+use crate::{
+    db::schema::burns,
+    utils::format::{address_zero, zero_bd},
+};
 
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
+#[diesel(table_name = burns)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct DatabaseBurn {
     pub id: String,
     pub transaction: String,
-    pub timestamp: i64,
+    pub timestamp: i32,
     pub pair: String,
-    pub liquidity: UD256,
-    pub sender: Option<String>,
-    pub amount0: UD256,
-    pub amount1: UD256,
-    pub to: Option<String>,
-    pub log_index: i64,
-    pub amount_usd: UD256,
+    pub liquidity: BigDecimal,
+    pub sender: String,
+    pub amount0: BigDecimal,
+    pub amount1: BigDecimal,
+    pub to: String,
+    pub log_index: i32,
+    pub amount_usd: BigDecimal,
     pub needs_complete: bool,
     pub fee_to: String,
-    pub fee_liquidity: UD256,
+    pub fee_liquidity: BigDecimal,
 }
 
+#[allow(clippy::too_many_arguments)]
 impl DatabaseBurn {
     pub fn new(
         id: String,
         transaction: String,
-        timestamp: i64,
-        log_index: i64,
-        data: BurnData,
+        timestamp: i32,
+        log_index: i32,
+        pair: String,
+        to: String,
+        liquidity: BigDecimal,
+        sender: String,
+        needs_complete: bool,
     ) -> Self {
         Self {
             id,
             transaction,
             timestamp,
-            pair: data.pair,
-            to: data.to,
-            liquidity: data.liquidity,
-            sender: data.sender,
-            amount0: udec256!(0),
-            amount1: udec256!(0),
+            pair,
+            to,
+            liquidity,
+            sender,
+            amount0: zero_bd(),
+            amount1: zero_bd(),
             log_index,
-            amount_usd: udec256!(0),
-            fee_to: Address::ZERO.to_string(),
-            fee_liquidity: udec256!(0),
-            needs_complete: data.needs_complete,
+            amount_usd: zero_bd(),
+            fee_to: address_zero(),
+            fee_liquidity: zero_bd(),
+            needs_complete,
         }
     }
 }

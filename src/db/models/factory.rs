@@ -1,19 +1,24 @@
-use fastnum::{udec256, UD256};
-use serde::{Deserialize, Serialize};
+use bigdecimal::BigDecimal;
+use diesel::{AsChangeset, Insertable, Queryable};
 
-use crate::db::DatabaseKeys;
+use crate::{
+    db::{schema::factories, DatabaseKeys},
+    utils::format::zero_bd,
+};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
+#[diesel(table_name = factories)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct DatabaseFactory {
     pub id: String,
     pub pair_count: i32,
-    pub total_volume_usd: UD256,
-    pub total_volume_eth: UD256,
-    pub untracked_volume_usd: UD256,
-    pub total_liquidity_usd: UD256,
-    pub total_liquidity_eth: UD256,
-    pub tx_count: i64,
-    pub pairs: Vec<String>,
+    pub pairs: Vec<Option<String>>,
+    pub total_volume_usd: BigDecimal,
+    pub total_volume_eth: BigDecimal,
+    pub untracked_volume_usd: BigDecimal,
+    pub total_liquidity_usd: BigDecimal,
+    pub total_liquidity_eth: BigDecimal,
+    pub tx_count: i32,
 }
 
 impl Default for DatabaseFactory {
@@ -27,13 +32,13 @@ impl DatabaseFactory {
         Self {
             id: DatabaseKeys::Factory.as_str().to_owned(),
             pair_count: 0,
-            total_volume_usd: udec256!(0),
-            total_volume_eth: udec256!(0),
-            untracked_volume_usd: udec256!(0),
-            total_liquidity_usd: udec256!(0),
-            total_liquidity_eth: udec256!(0),
-            tx_count: 0,
             pairs: vec![],
+            total_volume_usd: zero_bd(),
+            total_volume_eth: zero_bd(),
+            untracked_volume_usd: zero_bd(),
+            total_liquidity_usd: zero_bd(),
+            total_liquidity_eth: zero_bd(),
+            tx_count: 0,
         }
     }
 }

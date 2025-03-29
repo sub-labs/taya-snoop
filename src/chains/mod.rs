@@ -1,38 +1,34 @@
 use std::collections::HashMap;
 
-use alloy::primitives::{address, Address};
-
 #[derive(Debug, Clone)]
 pub struct Chain {
     pub id: u64,
     pub name: &'static str,
-    pub factory: Address,
-    pub start_block: i64,
-    pub weth: Address,
+    pub factory: &'static str,
+    pub start_block: i32,
+    pub weth: &'static str,
     pub whitelist_tokens: &'static [&'static str],
-    pub dai_weth_pair: Option<Address>,
-    pub usdc_weth_pair: Option<Address>,
-    pub usdt_weth_pair: Option<Address>,
+    pub usdc_weth_pair: Option<&'static str>,
+    pub usdt_weth_pair: Option<&'static str>,
+    pub minimum_usd_threshold_new_pairs: i32,
+    pub minimum_liquidity_threshold_eth: i32,
 }
 
 pub const TESTNET: Chain = Chain {
     id: 10143,
     name: "testnet",
-    factory: address!("0xf4a772216e9266d062cee940b13a709f3542247b"),
-    start_block: 4047383,
-    weth: address!("0x760afe86e5de5fa0ee542fc7b7b713e1c5425701"),
+    factory: "0xf3fd5503fb2bb5f5a7ae713e621ac5c50f191fb3",
+    start_block: 5253609,
+    weth: "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701",
     whitelist_tokens: &[
-        "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701", // WETH
-        "0xddb9439df327910f9290a601f20bde775d856863", // tayUSDC
-        "0xba7ccc60e4d15f3f71bff29771746e852eebeffe", // tayUSDT
+        "0x760afe86e5de5fa0ee542fc7b7b713e1c5425701", // WMON
+        "0xf817257fed379853cde0fa4f97ab987181b1e5ea", // USDC
+        "0x88b8e2161dedc77ef4ab7585569d2415a1c1055d", // USDT
     ],
-    dai_weth_pair: None,
-    usdc_weth_pair: Some(address!(
-        "0x2ae000ddc4c47f542eb4a8b7d9213ac421877ab7"
-    )),
-    usdt_weth_pair: Some(address!(
-        "0x8b52b43d2a90e79cd1cf1e204adb36df58658206"
-    )),
+    usdc_weth_pair: Some("0x1512cb2431b9b14ed14e39dad75496b922481cfd"),
+    usdt_weth_pair: Some("0x488e1d7f4ac40ff42817efbdb5db36508277dc99"),
+    minimum_usd_threshold_new_pairs: 10000,
+    minimum_liquidity_threshold_eth: 2,
 };
 
 pub static CHAINS: [Chain; 1] = [TESTNET];

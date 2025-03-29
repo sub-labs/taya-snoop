@@ -15,6 +15,7 @@ sol! {
 
 pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
     let mut count_tokens = 0;
+
     let count_pairs = pairs.len();
 
     // Start iterating pair events
@@ -22,27 +23,30 @@ pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
         // Parse the log to event
         let event = PairCreated::decode_log(&log.inner, true).unwrap();
 
+        let token0_address = event.token0.to_string().to_lowercase();
+        let token1_address = event.token1.to_string().to_lowercase();
+        let pair_address = event.pair.to_string().to_lowercase();
+
         // Load the factory
         let mut factory = db.get_factory().await;
 
         // Add the pair to the count
         factory.pair_count += 1;
-        factory.pairs.push(event.pair.to_string());
+        factory.pairs.push(Some(pair_address));
 
         // Load the token0
-        let token0 =
-            db.get_token(&event.token0.to_string().to_lowercase()).await;
+        let token0 = db.get_token(&token0_address.clone()).await;
+
         // Load the token1
-        let token1 =
-            db.get_token(&event.token1.to_string().to_lowercase()).await;
+        let token1 = db.get_token(&token1_address.clone()).await;
 
         // Create if it doesn't exists
         if token0.is_none() {
             let (name, symbol, total_supply, decimals) =
-                rpc.get_token_information(event.token0.to_string()).await;
+                rpc.get_token_information(token0_address.clone()).await;
 
             let token = DatabaseToken::new(
-                event.token0.to_string(),
+                token0_address,
                 symbol,
                 name,
                 decimals,
@@ -56,10 +60,10 @@ pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
         // Create if it doesn't exists
         if token1.is_none() {
             let (name, symbol, total_supply, decimals) =
-                rpc.get_token_information(event.token1.to_string()).await;
+                rpc.get_token_information(token1_address.clone()).await;
 
             let token = DatabaseToken::new(
-                event.token1.to_string(),
+                token1_address,
                 symbol,
                 name,
                 decimals,
@@ -71,7 +75,7 @@ pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
             count_tokens += 1;
         }
 
-        let block_number = log.block_number.unwrap() as i64;
+        let block_number = log.block_number.unwrap() as i32;
         let block_timestamp = rpc.get_block_timestamp(block_number).await;
 
         // Create the pair data

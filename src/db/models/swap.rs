@@ -1,57 +1,58 @@
-use fastnum::UD256;
-use serde::{Deserialize, Serialize};
+use bigdecimal::BigDecimal;
+use diesel::{AsChangeset, Insertable, Queryable};
 
-pub struct SwapAmounts {
-    pub amount0_in: UD256,
-    pub amount1_in: UD256,
-    pub amount0_out: UD256,
-    pub amount1_out: UD256,
-    pub amount_usd: UD256,
-}
+use crate::db::schema::swaps;
 
-pub struct SwapData {
-    pub pair: String,
-    pub sender: String,
-    pub to: String,
-    pub from: String,
-    pub log_index: i64,
-    pub transaction: String,
-    pub timestamp: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
+#[diesel(table_name = swaps)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct DatabaseSwap {
     pub id: String,
     pub transaction: String,
-    pub timestamp: i64,
+    pub timestamp: i32,
     pub pair: String,
     pub sender: String,
     pub from: String,
-    pub amount0_in: UD256,
-    pub amount1_in: UD256,
-    pub amount0_out: UD256,
-    pub amount1_out: UD256,
+    pub amount0_in: BigDecimal,
+    pub amount1_in: BigDecimal,
+    pub amount0_out: BigDecimal,
+    pub amount1_out: BigDecimal,
     pub to: String,
-    pub log_index: i64,
-    pub amount_usd: UD256,
+    pub log_index: i32,
+    pub amount_usd: BigDecimal,
 }
 
+#[allow(clippy::too_many_arguments)]
 impl DatabaseSwap {
-    pub fn new(id: String, data: SwapData, amounts: SwapAmounts) -> Self {
+    pub fn new(
+        id: String,
+        transaction: String,
+        timestamp: i32,
+        pair: String,
+        sender: String,
+        from: String,
+        amount0_in: BigDecimal,
+        amount1_in: BigDecimal,
+        amount0_out: BigDecimal,
+        amount1_out: BigDecimal,
+        log_index: i32,
+        amount_usd: BigDecimal,
+        to: String,
+    ) -> Self {
         Self {
             id,
-            transaction: data.transaction,
-            timestamp: data.timestamp,
-            pair: data.pair,
-            sender: data.sender,
-            from: data.from,
-            amount0_in: amounts.amount0_in,
-            amount1_in: amounts.amount1_in,
-            amount0_out: amounts.amount0_out,
-            amount1_out: amounts.amount1_out,
-            to: data.to,
-            log_index: data.log_index,
-            amount_usd: amounts.amount_usd,
+            transaction,
+            timestamp,
+            pair,
+            sender,
+            from,
+            amount0_in,
+            amount1_in,
+            amount0_out,
+            amount1_out,
+            to,
+            log_index,
+            amount_usd,
         }
     }
 }

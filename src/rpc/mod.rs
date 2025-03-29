@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use fastnum::{udec256, UD256};
+use bigdecimal::BigDecimal;
 use log::info;
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
         burn::Burn, mint::Mint, pairs::PairCreated, swap::Swap,
         sync::Sync, transfer::Transfer,
     },
-    utils::format::parse_ud256,
+    utils::format::{parse_u256, zero_bd},
 };
 use alloy::{
     eips::BlockNumberOrTag,
@@ -49,9 +49,9 @@ impl Rpc {
         Self { chain: config.chain.clone(), client }
     }
 
-    pub async fn get_last_block(&self) -> Option<u64> {
+    pub async fn get_last_block(&self) -> Option<i32> {
         match self.client.get_block_number().await {
-            Ok(block) => Some(block),
+            Ok(block) => Some(block as i32),
             Err(_) => None,
         }
     }
@@ -65,7 +65,7 @@ impl Rpc {
         let filter = Filter::new()
             .from_block(BlockNumberOrTag::Number(first_block))
             .to_block(BlockNumberOrTag::Number(last_block))
-            .address(config.chain.factory)
+            .address(config.chain.factory.parse::<Address>().unwrap())
             .event(PairCreated::SIGNATURE);
 
         match self.client.get_logs(&filter).await {
@@ -77,8 +77,8 @@ impl Rpc {
     pub async fn get_pairs_logs_batch(
         &self,
         pairs: &[String],
-        first_block: u64,
-        last_block: u64,
+        first_block: i32,
+        last_block: i32,
     ) -> Option<Vec<Log>> {
         let address_pairs: Vec<Address> = pairs
             .iter()
@@ -86,8 +86,8 @@ impl Rpc {
             .collect();
 
         let filter = Filter::new()
-            .from_block(BlockNumberOrTag::Number(first_block))
-            .to_block(BlockNumberOrTag::Number(last_block))
+            .from_block(BlockNumberOrTag::Number(first_block as u64))
+            .to_block(BlockNumberOrTag::Number(last_block as u64))
             .address(address_pairs)
             .events(vec![
                 Mint::SIGNATURE,
@@ -106,7 +106,7 @@ impl Rpc {
     pub async fn get_token_information(
         &self,
         token: String,
-    ) -> (String, String, UD256, u64) {
+    ) -> (String, String, BigDecimal, i32) {
         let token =
             ERC20::new(Address::from_str(&token).unwrap(), &self.client);
 
@@ -120,20 +120,21 @@ impl Rpc {
             Err(_) => "UNKNOWN".to_owned(),
         };
 
-        let total_supply: UD256 = match token.totalSupply().call().await {
-            Ok(total_supply) => parse_ud256(total_supply._0),
-            Err(_) => udec256!(0),
-        };
+        let total_supply: BigDecimal =
+            match token.totalSupply().call().await {
+                Ok(total_supply) => parse_u256(total_supply._0),
+                Err(_) => zero_bd(),
+            };
 
-        let decimals: u64 = match token.decimals().call().await {
-            Ok(decimals) => decimals._0 as u64,
+        let decimals: i32 = match token.decimals().call().await {
+            Ok(decimals) => decimals._0 as i32,
             Err(_) => 0,
         };
 
         (name, symbol, total_supply, decimals)
     }
 
-    pub async fn get_block_timestamp(&self, block_number: i64) -> i64 {
+    pub async fn get_block_timestamp(&self, block_number: i32) -> i32 {
         let block = self
             .client
             .get_block_by_number(
@@ -144,7 +145,7 @@ impl Rpc {
             .unwrap()
             .unwrap();
 
-        block.header.timestamp as i64
+        block.header.timestamp as i32
     }
 
     pub async fn get_pair_for_tokens(
@@ -153,7 +154,10 @@ impl Rpc {
         token1: String,
         config: &Config,
     ) -> String {
-        let factory = FACTORY::new(config.chain.factory, &self.client);
+        let factory = FACTORY::new(
+            config.chain.factory.parse::<Address>().unwrap(),
+            &self.client,
+        );
 
         factory
             .getPair(

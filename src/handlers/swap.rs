@@ -1,22 +1,18 @@
 use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
-use fastnum::{udec256, UD256};
+use bigdecimal::BigDecimal;
 
 use crate::{
     configs::Config,
     db::{
-        models::{
-            swap::{DatabaseSwap, SwapAmounts, SwapData},
-            transaction::DatabaseTransaction,
-        },
+        models::{swap::DatabaseSwap, transaction::DatabaseTransaction},
         Database,
     },
-    utils::format::parse_ud256,
+    utils::format::{convert_token_to_decimal, parse_u256, zero_bd},
 };
 
 use super::utils::{
-    convert_token_to_decimal, get_tracked_volume_usd,
-    update_factory_day_data, update_pair_day_data, update_pair_hour_data,
-    update_token_day_data,
+    get_tracked_volume_usd, update_dex_day_data, update_pair_day_data,
+    update_pair_hour_data, update_token_day_data,
 };
 
 sol! {
@@ -32,13 +28,17 @@ sol! {
 
 pub async fn handle_swap(
     log: Log,
-    block_timestamp: i64,
+    block_timestamp: i32,
     db: &Database,
     config: &Config,
 ) {
     let event = Swap::decode_log(&log.inner, true).unwrap();
 
-    let mut pair = db.get_pair(&event.address.to_string()).await.unwrap();
+    let pair_address = event.address.to_string().to_lowercase();
+    let sender_address = event.sender.to_string().to_lowercase();
+    let to_address = event.to.to_string().to_lowercase();
+
+    let mut pair = db.get_pair(&pair_address).await.unwrap();
 
     let token0 = db.get_token(&pair.token0).await;
     let token1 = db.get_token(&pair.token1).await;
@@ -51,42 +51,41 @@ pub async fn handle_swap(
     let mut token1 = token1.unwrap();
 
     let amount0_in = convert_token_to_decimal(
-        &parse_ud256(event.amount0In),
-        &UD256::from(token0.decimals),
+        &parse_u256(event.amount0In),
+        token0.decimals,
     );
 
     let amount1_in = convert_token_to_decimal(
-        &parse_ud256(event.amount1In),
-        &UD256::from(token1.decimals),
+        &parse_u256(event.amount1In),
+        token1.decimals,
     );
 
     let amount0_out = convert_token_to_decimal(
-        &parse_ud256(event.amount0Out),
-        &UD256::from(token0.decimals),
+        &parse_u256(event.amount0Out),
+        token0.decimals,
     );
 
     let amount1_out = convert_token_to_decimal(
-        &parse_ud256(event.amount1Out),
-        &UD256::from(token1.decimals),
+        &parse_u256(event.amount1Out),
+        token1.decimals,
     );
 
-    let amount0_total = amount0_out.add(amount0_in);
-    let amount1_total = amount1_out.add(amount1_in);
+    let amount0_total = amount0_out.clone() + amount0_in.clone();
+    let amount1_total = amount1_out.clone() + amount1_in.clone();
 
     let bundle = db.get_bundle().await;
 
-    let derived_amount_eth = token1
-        .derived_eth
-        .mul(amount1_total)
-        .add(token0.derived_eth.mul(amount0_total))
-        .div(udec256!(2));
+    let derived_amount_eth: BigDecimal = ((token1.derived_eth.clone()
+        * (amount1_total.clone()))
+        + (token0.derived_eth.clone() * amount0_total.clone()))
+        / 2;
 
-    let derived_amount_usd = derived_amount_eth.mul(bundle.eth_price);
+    let derived_amount_usd = derived_amount_eth * bundle.eth_price.clone();
 
     let tracked_amount_usd = get_tracked_volume_usd(
-        amount0_total,
+        amount0_total.clone(),
         &token0,
-        amount1_total,
+        amount1_total.clone(),
         &token1,
         &pair,
         db,
@@ -94,42 +93,38 @@ pub async fn handle_swap(
     )
     .await;
 
-    let tracked_amount_eth = match bundle.eth_price.eq(&udec256!(0)) {
-        true => udec256!(0),
-        false => tracked_amount_usd.div(bundle.eth_price),
-    };
+    let tracked_amount_eth: BigDecimal =
+        match bundle.eth_price == zero_bd() {
+            true => zero_bd(),
+            false => tracked_amount_usd.clone() / bundle.eth_price.clone(),
+        };
 
-    token0.trade_volume =
-        token0.trade_volume.add(amount0_in.add(amount0_out));
-    token0.trade_volume_usd =
-        token0.trade_volume_usd.add(tracked_amount_usd);
-    token0.untracked_volume_usd =
-        token0.untracked_volume_usd.add(derived_amount_usd);
+    token0.trade_volume += amount0_in.clone() + amount0_out.clone();
+    token0.trade_volume_usd += tracked_amount_usd.clone();
+    token0.untracked_volume_usd += derived_amount_usd.clone();
 
-    token1.trade_volume =
-        token1.trade_volume.add(amount1_in.add(amount1_out));
-    token1.trade_volume_usd =
-        token1.trade_volume_usd.add(tracked_amount_usd);
-    token1.untracked_volume_usd =
-        token1.untracked_volume_usd.add(derived_amount_usd);
+    token1.trade_volume += amount1_in.clone() + amount1_out.clone();
+    token1.trade_volume_usd += tracked_amount_usd.clone();
+    token1.untracked_volume_usd += derived_amount_usd.clone();
 
     token0.tx_count += 1;
     token1.tx_count += 1;
 
-    pair.volume_usd = pair.volume_usd.add(tracked_amount_usd);
-    pair.volume_token0 = pair.volume_token0.add(amount0_total);
-    pair.volume_token1 = pair.volume_token1.add(amount1_total);
-    pair.untracked_volume_usd =
-        pair.untracked_volume_usd.add(derived_amount_usd);
+    pair.volume_usd += tracked_amount_usd.clone();
+    pair.volume_token0 += amount0_total.clone();
+    pair.volume_token1 += amount1_total.clone();
+    pair.untracked_volume_usd += derived_amount_usd.clone();
     pair.tx_count += 1;
 
     db.update_pair(&pair).await;
 
     let mut factory = db.get_factory().await;
-    factory.total_volume_usd =
-        factory.total_volume_usd.add(tracked_amount_usd);
-    factory.total_liquidity_eth =
-        factory.total_volume_eth.add(tracked_amount_eth);
+    factory.total_volume_usd += tracked_amount_usd.clone();
+    factory.total_volume_eth =
+        factory.total_volume_eth.clone() + tracked_amount_eth.clone();
+
+    factory.untracked_volume_usd += derived_amount_usd.clone();
+
     factory.tx_count += 1;
 
     db.update_pair(&pair).await;
@@ -139,7 +134,7 @@ pub async fn handle_swap(
     db.update_factory(&factory).await;
 
     let transaction_hash = log.transaction_hash.unwrap().to_string();
-    let block_number = log.block_number.unwrap() as i64;
+    let block_number = log.block_number.unwrap() as i32;
 
     let mut transaction = match db.get_transaction(&transaction_hash).await
     {
@@ -157,34 +152,30 @@ pub async fn handle_swap(
         transaction.swaps.len()
     );
 
-    let amount_usd = match tracked_amount_usd == udec256!(0) {
-        true => derived_amount_usd,
-        false => tracked_amount_usd,
+    let amount_usd = match tracked_amount_usd == zero_bd() {
+        true => derived_amount_usd.clone(),
+        false => tracked_amount_usd.clone(),
     };
 
     let swap = DatabaseSwap::new(
         swap_id,
-        SwapData {
-            pair: pair.id.clone(),
-            sender: event.sender.to_string(),
-            to: event.to.to_string(),
-            from: "".to_string(), // TODO: get 'from'
-            log_index: log.log_index.unwrap() as i64,
-            transaction: log.transaction_hash.unwrap().to_string(),
-            timestamp: block_timestamp,
-        },
-        SwapAmounts {
-            amount0_in,
-            amount1_in,
-            amount0_out,
-            amount1_out,
-            amount_usd,
-        },
+        log.transaction_hash.unwrap().to_string(),
+        block_timestamp,
+        pair_address,
+        sender_address.clone(),
+        sender_address,
+        amount0_in,
+        amount1_in,
+        amount0_out,
+        amount1_out,
+        log.log_index.unwrap() as i32,
+        amount_usd,
+        to_address,
     );
 
     db.update_swap(&swap).await;
 
-    transaction.swaps.push(swap.id.clone());
+    transaction.swaps.push(Some(swap.id.clone()));
 
     db.update_transaction(&transaction).await;
 
@@ -192,59 +183,45 @@ pub async fn handle_swap(
         update_pair_day_data(&log, block_timestamp, db).await;
     let mut pair_hour_data =
         update_pair_hour_data(&log, block_timestamp, db).await;
-    let mut factory_day_data =
-        update_factory_day_data(db, block_timestamp).await;
+    let mut dex_day_data = update_dex_day_data(db, block_timestamp).await;
     let mut token0_day_data =
         update_token_day_data(&token0, block_timestamp, db).await;
     let mut token1_day_data =
         update_token_day_data(&token1, block_timestamp, db).await;
 
-    factory_day_data.daily_volume_usd =
-        factory_day_data.daily_volume_usd.add(tracked_amount_usd);
-    factory_day_data.daily_volume_eth =
-        factory_day_data.daily_volume_eth.add(tracked_amount_eth);
-    factory_day_data.daily_volume_untracked =
-        factory_day_data.daily_volume_untracked.add(derived_amount_usd);
+    dex_day_data.daily_volume_usd += tracked_amount_usd.clone();
+    dex_day_data.daily_volume_eth += tracked_amount_eth;
+    dex_day_data.daily_volume_untracked += derived_amount_usd;
 
-    db.update_factory_day_data(&factory_day_data).await;
+    db.update_dex_day_data(&dex_day_data).await;
 
-    pair_day_data.daily_volume_token0 =
-        pair_day_data.daily_volume_token0.add(amount0_total);
-    pair_day_data.daily_volume_token1 =
-        pair_day_data.daily_volume_token1.add(amount1_total);
-    pair_day_data.daily_volume_usd =
-        pair_day_data.daily_volume_usd.add(tracked_amount_usd);
+    pair_day_data.daily_volume_token0 += amount0_total.clone();
+    pair_day_data.daily_volume_token1 += amount1_total.clone();
+    pair_day_data.daily_volume_usd += tracked_amount_usd.clone();
 
     db.update_pair_day_data(&pair_day_data).await;
 
-    pair_hour_data.hourly_volume_token0 =
-        pair_hour_data.hourly_volume_token0.add(amount0_total);
-    pair_hour_data.hourly_volume_token1 =
-        pair_hour_data.hourly_volume_token1.add(amount1_total);
-    pair_hour_data.hourly_volume_usd =
-        pair_hour_data.hourly_volume_usd.add(tracked_amount_usd);
+    pair_hour_data.hourly_volume_token0 += amount0_total.clone();
+    pair_hour_data.hourly_volume_token1 += amount1_total.clone();
+    pair_hour_data.hourly_volume_usd += tracked_amount_usd.clone();
 
     db.update_pair_hour_data(&pair_hour_data).await;
 
-    token0_day_data.daily_volume_token =
-        token0_day_data.daily_volume_token.add(amount0_total);
-    token0_day_data.daily_volume_eth = token0_day_data
-        .daily_volume_eth
-        .add(amount0_total.mul(token0.derived_eth));
-    token0_day_data.daily_volume_usd = token0_day_data
-        .daily_volume_usd
-        .add(amount0_total.mul(token0.derived_eth).mul(bundle.eth_price));
+    token0_day_data.daily_volume_token += amount0_total.clone();
+    token0_day_data.daily_volume_eth +=
+        amount0_total.clone() * token0.derived_eth.clone();
+    token0_day_data.daily_volume_usd +=
+        amount0_total * token0.derived_eth * bundle.eth_price.clone();
 
     db.update_token_day_data(&token0_day_data).await;
 
-    token1_day_data.daily_volume_token =
-        token1_day_data.daily_volume_token.add(amount1_total);
-    token1_day_data.daily_volume_eth = token1_day_data
-        .daily_volume_eth
-        .add(amount1_total.mul(token1.derived_eth));
-    token1_day_data.daily_volume_usd = token1_day_data
-        .daily_volume_usd
-        .add(amount1_total.mul(token1.derived_eth).mul(bundle.eth_price));
+    token1_day_data.daily_volume_token += amount1_total.clone();
+
+    token1_day_data.daily_volume_eth +=
+        amount1_total.clone() * token1.derived_eth.clone();
+
+    token1_day_data.daily_volume_usd +=
+        amount1_total * token1.derived_eth * bundle.eth_price;
 
     db.update_token_day_data(&token1_day_data).await;
 }

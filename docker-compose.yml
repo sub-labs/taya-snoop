@@ -1,11 +1,45 @@
 services:
+  graphql:
+    image: graphile/postgraphile:latest
+    container_name: graphql
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - ./.env
+    ports:
+      - 5433:5433
+    command:  ["--connection","postgres://indexer:${DATABASE_PASSWORD}@postgres:5432","--port","5433","--schema","public","--enhance-graphiql"]
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=indexer
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+      - POSTGRES_DB=indexer
+      - POSTGRES_INITDB_ARGS=-E UTF8 --locale=C
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U indexer"]
+      interval: 1s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    restart: always
+    env_file: "./.env"
+
   indexer:
     image: snoop
     container_name: indexer
+    depends_on:
+      postgres:
+        condition: service_healthy
     command: >
       snoop
-      --database "${DATABASE_URL}"
+      --database "postgres://indexer:${DATABASE_PASSWORD}@postgres:5432"
       --rpc ${RPC_ENDPOINT}
-      --batch-size ${BATCH_SIZE-500}
+      --batch-size ${BATCH_SIZE-100}
+      --chain testnet
     restart: always
     env_file: "./.env"

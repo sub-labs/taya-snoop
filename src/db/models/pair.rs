@@ -1,56 +1,59 @@
 use alloy::primitives::Log;
-use fastnum::{udec256, UD256};
-use serde::{Deserialize, Serialize};
+use bigdecimal::BigDecimal;
+use diesel::{AsChangeset, Insertable, Queryable};
 
-use crate::handlers::pairs::PairCreated;
+use crate::{
+    db::schema::pairs, handlers::pairs::PairCreated,
+    utils::format::zero_bd,
+};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
+#[diesel(table_name = pairs)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct DatabasePair {
     pub id: String,
-    pub pair: String,
     pub token0: String,
     pub token1: String,
-    pub reserve0: UD256,
-    pub reserve1: UD256,
-    pub total_supply: UD256,
-    pub reserve_eth: UD256,
-    pub reserve_usd: UD256,
-    pub tracked_reserve_eth: UD256,
-    pub token0_price: UD256,
-    pub token1_price: UD256,
-    pub volume_token0: UD256,
-    pub volume_token1: UD256,
-    pub volume_usd: UD256,
-    pub untracked_volume_usd: UD256,
-    pub tx_count: i64,
-    pub created_at_timestamp: i64,
-    pub created_at_block_number: i64,
-    pub liquidity_provider_count: i64,
+    pub reserve0: BigDecimal,
+    pub reserve1: BigDecimal,
+    pub total_supply: BigDecimal,
+    pub reserve_eth: BigDecimal,
+    pub reserve_usd: BigDecimal,
+    pub tracked_reserve_eth: BigDecimal,
+    pub token0_price: BigDecimal,
+    pub token1_price: BigDecimal,
+    pub volume_token0: BigDecimal,
+    pub volume_token1: BigDecimal,
+    pub volume_usd: BigDecimal,
+    pub untracked_volume_usd: BigDecimal,
+    pub tx_count: i32,
+    pub created_at_timestamp: i32,
+    pub created_at_block_number: i32,
+    pub liquidity_provider_count: i32,
 }
 
 impl DatabasePair {
     pub fn new(
         event: Log<PairCreated>,
-        created_at_timestamp: i64,
-        created_at_block_number: i64,
+        created_at_timestamp: i32,
+        created_at_block_number: i32,
     ) -> Self {
         Self {
             id: event.pair.to_string().to_lowercase(),
-            pair: event.pair.to_string().to_lowercase(),
             token0: event.token0.to_string().to_lowercase(),
             token1: event.token1.to_string().to_lowercase(),
-            reserve0: udec256!(0),
-            reserve1: udec256!(0),
-            total_supply: udec256!(0),
-            reserve_eth: udec256!(0),
-            reserve_usd: udec256!(0),
-            tracked_reserve_eth: udec256!(0),
-            token0_price: udec256!(0),
-            token1_price: udec256!(0),
-            volume_token0: udec256!(0),
-            volume_token1: udec256!(0),
-            volume_usd: udec256!(0),
-            untracked_volume_usd: udec256!(0),
+            reserve0: zero_bd(),
+            reserve1: zero_bd(),
+            total_supply: zero_bd(),
+            reserve_eth: zero_bd(),
+            reserve_usd: zero_bd(),
+            tracked_reserve_eth: zero_bd(),
+            token0_price: zero_bd(),
+            token1_price: zero_bd(),
+            volume_token0: zero_bd(),
+            volume_token1: zero_bd(),
+            volume_usd: zero_bd(),
+            untracked_volume_usd: zero_bd(),
             tx_count: 0,
             created_at_timestamp,
             created_at_block_number,

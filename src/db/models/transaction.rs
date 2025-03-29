@@ -1,19 +1,23 @@
-use serde::{Deserialize, Serialize};
+use diesel::{AsChangeset, Insertable, Queryable};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+use crate::db::schema::transactions;
+
+#[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
+#[diesel(table_name = transactions)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct DatabaseTransaction {
-    pub hash: String,
-    pub block_number: i64,
-    pub timestamp: i64,
-    pub mints: Vec<String>,
-    pub burns: Vec<String>,
-    pub swaps: Vec<String>,
+    pub id: String,
+    pub block_number: i32,
+    pub timestamp: i32,
+    pub mints: Vec<Option<String>>,
+    pub swaps: Vec<Option<String>>,
+    pub burns: Vec<Option<String>>,
 }
 
 impl DatabaseTransaction {
-    pub fn new(hash: String, block_number: i64, timestamp: i64) -> Self {
+    pub fn new(hash: String, block_number: i32, timestamp: i32) -> Self {
         Self {
-            hash,
+            id: hash,
             block_number,
             timestamp,
             mints: Vec::new(),
