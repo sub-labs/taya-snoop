@@ -49,9 +49,9 @@ impl Rpc {
         Self { chain: config.chain.clone(), client }
     }
 
-    pub async fn get_last_block(&self) -> Option<u64> {
+    pub async fn get_last_block(&self) -> Option<i32> {
         match self.client.get_block_number().await {
-            Ok(block) => Some(block),
+            Ok(block) => Some(block as i32),
             Err(_) => None,
         }
     }

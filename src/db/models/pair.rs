@@ -10,7 +10,6 @@ use crate::{
 #[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = pairs)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-
 pub struct DatabasePair {
     pub id: String,
     pub token0: String,

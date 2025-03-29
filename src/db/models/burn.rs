@@ -9,7 +9,6 @@ use crate::{
 #[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = burns)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-
 pub struct DatabaseBurn {
     pub id: String,
     pub transaction: String,

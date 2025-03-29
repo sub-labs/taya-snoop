@@ -22,12 +22,12 @@ pub async fn get_eth_price_usd(
     config: &Config,
 ) -> BigDecimal {
     let usdc_pair = match config.chain.usdc_weth_pair {
-        Some(pair) => db.get_pair(&pair.to_string()).await,
+        Some(pair) => db.get_pair(pair).await,
         None => None,
     };
 
     let usdt_pair = match config.chain.usdt_weth_pair {
-        Some(pair) => db.get_pair(&pair.to_string()).await,
+        Some(pair) => db.get_pair(pair).await,
         None => None,
     };
 
@@ -57,7 +57,7 @@ pub async fn find_eth_per_token(
 ) -> BigDecimal {
     let token_address = token.id.to_lowercase();
 
-    if token_address == config.chain.weth.to_string() {
+    if token_address == *config.chain.weth {
         return one_bd();
     }
 

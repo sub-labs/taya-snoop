@@ -29,12 +29,17 @@ pub async fn handle_burn(log: Log, timestamp: i32, db: &Database) {
     let transaction = transaction.unwrap();
 
     let burns = transaction.burns.clone();
-    let burn = db.get_burn(burns.last().unwrap()).await;
+
+    let burn = burns.last().unwrap().as_ref().unwrap();
+
+    let burn = db.get_burn(burn).await;
     if burn.is_none() {
         return;
     }
 
-    let mut pair = db.get_pair(&event.address.to_string()).await.unwrap();
+    let pair_address = event.address.to_string().to_lowercase();
+
+    let mut pair = db.get_pair(&pair_address).await.unwrap();
 
     let mut factory = db.get_factory().await;
 

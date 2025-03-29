@@ -5,7 +5,6 @@ use crate::db::{schema::sync_state, DatabaseKeys};
 #[derive(Debug, Clone, Insertable, Queryable, AsChangeset)]
 #[diesel(table_name = sync_state)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-
 pub struct DatabaseSyncState {
     pub id: String,
     pub last_block_indexed: i32,

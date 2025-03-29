@@ -22,6 +22,7 @@ use models::{
     mint::DatabaseMint,
     pair::DatabasePair,
     swap::DatabaseSwap,
+    sync_state::DatabaseSyncState,
     token::DatabaseToken,
     transaction::DatabaseTransaction,
 };
@@ -81,8 +82,6 @@ impl DatabaseKeys {
     }
 }
 
-static DATABASE: &str = "indexer";
-
 impl Database {
     pub async fn new(db_url: String, chain: Chain) -> Self {
         info!("Starting database service");
@@ -109,7 +108,16 @@ impl Database {
 
         match number {
             Ok(block) => block,
-            Err(_) => panic!("unable to get last synced block"),
+            Err(_) => {
+                let new_sync_state = DatabaseSyncState::new();
+
+                diesel::insert_into(sync_state::dsl::sync_state)
+                    .values(new_sync_state.clone())
+                    .execute(&mut connection)
+                    .unwrap();
+
+                new_sync_state.last_block_indexed
+            }
         }
     }
 
@@ -158,21 +166,21 @@ impl Database {
     pub async fn get_token(&self, id: &str) -> Option<DatabaseToken> {
         let mut connection: PgConnection = self.get_connection();
 
-        return tokens::dsl::tokens
+        tokens::dsl::tokens
             .find(id)
             .first::<DatabaseToken>(&mut connection)
             .optional()
-            .unwrap();
+            .unwrap()
     }
 
     pub async fn get_pair(&self, id: &str) -> Option<DatabasePair> {
         let mut connection: PgConnection = self.get_connection();
 
-        return pairs::dsl::pairs
+        pairs::dsl::pairs
             .find(id)
             .first::<DatabasePair>(&mut connection)
             .optional()
-            .unwrap();
+            .unwrap()
     }
 
     pub async fn get_transaction(
@@ -181,31 +189,31 @@ impl Database {
     ) -> Option<DatabaseTransaction> {
         let mut connection: PgConnection = self.get_connection();
 
-        return transactions::dsl::transactions
+        transactions::dsl::transactions
             .find(id)
             .first::<DatabaseTransaction>(&mut connection)
             .optional()
-            .unwrap();
+            .unwrap()
     }
 
     pub async fn get_mint(&self, id: &str) -> Option<DatabaseMint> {
         let mut connection: PgConnection = self.get_connection();
 
-        return mints::dsl::mints
+        mints::dsl::mints
             .find(id)
             .first::<DatabaseMint>(&mut connection)
             .optional()
-            .unwrap();
+            .unwrap()
     }
 
     pub async fn get_burn(&self, id: &str) -> Option<DatabaseBurn> {
         let mut connection: PgConnection = self.get_connection();
 
-        return burns::dsl::burns
+        burns::dsl::burns
             .find(id)
             .first::<DatabaseBurn>(&mut connection)
             .optional()
-            .unwrap();
+            .unwrap()
     }
 
     pub async fn get_dex_day_data(
@@ -214,11 +222,11 @@ impl Database {
     ) -> Option<DatabaseDexDayData> {
         let mut connection: PgConnection = self.get_connection();
 
-        return dex_day_data::dsl::dex_day_data
+        dex_day_data::dsl::dex_day_data
             .find(id)
             .first::<DatabaseDexDayData>(&mut connection)
             .optional()
-            .unwrap();
+            .unwrap()
     }
 
     pub async fn get_pair_day_data(
@@ -227,11 +235,11 @@ impl Database {
     ) -> Option<DatabasePairDayData> {
         let mut connection: PgConnection = self.get_connection();
 
-        return pair_day_data::dsl::pair_day_data
+        pair_day_data::dsl::pair_day_data
             .find(id)
             .first::<DatabasePairDayData>(&mut connection)
             .optional()
-            .unwrap();
+            .unwrap()
     }
 
     pub async fn get_pair_hour_data(
@@ -240,11 +248,11 @@ impl Database {
     ) -> Option<DatabasePairHourData> {
         let mut connection: PgConnection = self.get_connection();
 
-        return pair_hour_data::dsl::pair_hour_data
+        pair_hour_data::dsl::pair_hour_data
             .find(id)
             .first::<DatabasePairHourData>(&mut connection)
             .optional()
-            .unwrap();
+            .unwrap()
     }
 
     pub async fn get_token_day_data(
@@ -253,28 +261,32 @@ impl Database {
     ) -> Option<DatabaseTokenDayData> {
         let mut connection: PgConnection = self.get_connection();
 
-        return token_day_data::dsl::token_day_data
+        token_day_data::dsl::token_day_data
             .find(id)
             .first::<DatabaseTokenDayData>(&mut connection)
             .optional()
-            .unwrap();
+            .unwrap()
     }
 
     pub async fn update_factory(&self, data: &DatabaseFactory) {
         let mut connection: PgConnection = self.get_connection();
 
-        diesel::update(
-            factories::dsl::factories.find(DatabaseKeys::Factory.as_str()),
-        )
-        .set(data)
-        .execute(&mut connection)
-        .unwrap();
+        diesel::insert_into(factories::dsl::factories)
+            .values(data)
+            .on_conflict(factories::id)
+            .do_update()
+            .set(data)
+            .execute(&mut connection)
+            .unwrap();
     }
 
     pub async fn update_token(&self, data: &DatabaseToken) {
         let mut connection: PgConnection = self.get_connection();
 
-        diesel::update(tokens::dsl::tokens.find(data.id.clone()))
+        diesel::insert_into(tokens::dsl::tokens)
+            .values(data)
+            .on_conflict(tokens::id)
+            .do_update()
             .set(data)
             .execute(&mut connection)
             .unwrap();
@@ -283,7 +295,10 @@ impl Database {
     pub async fn update_pair(&self, data: &DatabasePair) {
         let mut connection: PgConnection = self.get_connection();
 
-        diesel::update(pairs::dsl::pairs.find(data.id.clone()))
+        diesel::insert_into(pairs::dsl::pairs)
+            .values(data)
+            .on_conflict(pairs::id)
+            .do_update()
             .set(data)
             .execute(&mut connection)
             .unwrap();
@@ -292,7 +307,10 @@ impl Database {
     pub async fn update_burn(&self, data: &DatabaseBurn) {
         let mut connection: PgConnection = self.get_connection();
 
-        diesel::update(burns::dsl::burns.find(data.id.clone()))
+        diesel::insert_into(burns::dsl::burns)
+            .values(data)
+            .on_conflict(burns::id)
+            .do_update()
             .set(data)
             .execute(&mut connection)
             .unwrap();
@@ -301,7 +319,10 @@ impl Database {
     pub async fn update_mint(&self, data: &DatabaseMint) {
         let mut connection: PgConnection = self.get_connection();
 
-        diesel::update(mints::dsl::mints.find(data.id.clone()))
+        diesel::insert_into(mints::dsl::mints)
+            .values(data)
+            .on_conflict(mints::id)
+            .do_update()
             .set(data)
             .execute(&mut connection)
             .unwrap();
@@ -310,18 +331,22 @@ impl Database {
     pub async fn update_bundle(&self, data: &DatabaseBundle) {
         let mut connection: PgConnection = self.get_connection();
 
-        diesel::update(
-            bundles::dsl::bundles.find(DatabaseKeys::Bundle.as_str()),
-        )
-        .set(data)
-        .execute(&mut connection)
-        .unwrap();
+        diesel::insert_into(bundles::dsl::bundles)
+            .values(data)
+            .on_conflict(bundles::id)
+            .do_update()
+            .set(data)
+            .execute(&mut connection)
+            .unwrap();
     }
 
     pub async fn update_swap(&self, data: &DatabaseSwap) {
         let mut connection: PgConnection = self.get_connection();
 
-        diesel::update(swaps::dsl::swaps.find(data.id.clone()))
+        diesel::insert_into(swaps::dsl::swaps)
+            .values(data)
+            .on_conflict(swaps::id)
+            .do_update()
             .set(data)
             .execute(&mut connection)
             .unwrap();
@@ -330,34 +355,37 @@ impl Database {
     pub async fn update_transaction(&self, data: &DatabaseTransaction) {
         let mut connection: PgConnection = self.get_connection();
 
-        diesel::update(
-            transactions::dsl::transactions.find(data.id.clone()),
-        )
-        .set(data)
-        .execute(&mut connection)
-        .unwrap();
+        diesel::insert_into(transactions::dsl::transactions)
+            .values(data)
+            .on_conflict(transactions::id)
+            .do_update()
+            .set(data)
+            .execute(&mut connection)
+            .unwrap();
     }
 
     pub async fn update_dex_day_data(&self, data: &DatabaseDexDayData) {
         let mut connection: PgConnection = self.get_connection();
 
-        diesel::update(
-            dex_day_data::dsl::dex_day_data.find(data.id.clone()),
-        )
-        .set(data)
-        .execute(&mut connection)
-        .unwrap();
+        diesel::insert_into(dex_day_data::dsl::dex_day_data)
+            .values(data)
+            .on_conflict(dex_day_data::id)
+            .do_update()
+            .set(data)
+            .execute(&mut connection)
+            .unwrap();
     }
 
     pub async fn update_pair_day_data(&self, data: &DatabasePairDayData) {
         let mut connection: PgConnection = self.get_connection();
 
-        diesel::update(
-            pair_day_data::dsl::pair_day_data.find(data.id.clone()),
-        )
-        .set(data)
-        .execute(&mut connection)
-        .unwrap();
+        diesel::insert_into(pair_day_data::dsl::pair_day_data)
+            .values(data)
+            .on_conflict(pair_day_data::id)
+            .do_update()
+            .set(data)
+            .execute(&mut connection)
+            .unwrap();
     }
 
     pub async fn update_pair_hour_data(
@@ -366,12 +394,13 @@ impl Database {
     ) {
         let mut connection: PgConnection = self.get_connection();
 
-        diesel::update(
-            pair_hour_data::dsl::pair_hour_data.find(data.id.clone()),
-        )
-        .set(data)
-        .execute(&mut connection)
-        .unwrap();
+        diesel::insert_into(pair_hour_data::dsl::pair_hour_data)
+            .values(data)
+            .on_conflict(pair_hour_data::id)
+            .do_update()
+            .set(data)
+            .execute(&mut connection)
+            .unwrap();
     }
 
     pub async fn update_token_day_data(
@@ -380,10 +409,22 @@ impl Database {
     ) {
         let mut connection: PgConnection = self.get_connection();
 
+        diesel::insert_into(token_day_data::dsl::token_day_data)
+            .values(data)
+            .on_conflict(token_day_data::id)
+            .do_update()
+            .set(data)
+            .execute(&mut connection)
+            .unwrap();
+    }
+
+    pub async fn update_state(&self, last_indexed_block: i32) {
+        let mut connection: PgConnection = self.get_connection();
+
         diesel::update(
-            token_day_data::dsl::token_day_data.find(data.id.clone()),
+            sync_state::dsl::sync_state.find(DatabaseKeys::State.as_str()),
         )
-        .set(data)
+        .set(sync_state::dsl::last_block_indexed.eq(last_indexed_block))
         .execute(&mut connection)
         .unwrap();
     }

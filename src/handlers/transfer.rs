@@ -39,11 +39,12 @@ pub async fn handle_transfer(
     }
 
     let factory = db.get_factory().await;
+
     let transaction_hash = log.transaction_hash.unwrap().to_string();
 
-    let mut pair = db.get_pair(&event.address.to_string()).await.unwrap();
+    let pair_address = event.address.to_string().to_lowercase().clone();
 
-    let pair_address = pair.id.to_lowercase().clone();
+    let mut pair = db.get_pair(&pair_address).await.unwrap();
 
     let value = convert_token_to_decimal(&parse_u256(event.value), 18);
 
@@ -60,13 +61,13 @@ pub async fn handle_transfer(
     };
 
     if from_address == address_zero() {
-        pair.total_supply = pair.total_supply + value.clone();
+        pair.total_supply += value.clone();
 
         db.update_pair(&pair).await;
 
         if transaction.mints.is_empty()
             || is_complete_mint(
-                transaction.mints.last().unwrap().to_string(),
+                transaction.mints.last().unwrap().clone().unwrap(),
                 db,
             )
             .await
@@ -88,7 +89,7 @@ pub async fn handle_transfer(
 
             db.update_mint(&mint).await;
 
-            transaction.mints.push(mint.id);
+            transaction.mints.push(Some(mint.id));
 
             db.update_transaction(&transaction).await;
             db.update_factory(&factory).await;
@@ -116,23 +117,23 @@ pub async fn handle_transfer(
 
         db.update_burn(&burn).await;
 
-        transaction.burns.push(burn.id.clone());
+        transaction.burns.push(Some(burn.id.clone()));
 
         db.update_transaction(&transaction).await;
     }
 
     if to_address == address_zero() && from_address == pair_address {
-        pair.total_supply = pair.total_supply - value.clone();
+        pair.total_supply -= value.clone();
 
         db.update_pair(&pair).await;
 
         let mut burn: DatabaseBurn;
 
         if !transaction.burns.is_empty() {
-            let current_burn = db
-                .get_burn(transaction.burns.last().unwrap())
-                .await
-                .unwrap();
+            let burn_id =
+                transaction.burns.last().unwrap().as_ref().unwrap();
+
+            let current_burn = db.get_burn(burn_id).await.unwrap();
 
             if current_burn.needs_complete {
                 burn = current_burn
@@ -175,17 +176,14 @@ pub async fn handle_transfer(
             )
         }
 
+        let mint = transaction.mints.last().unwrap().clone().unwrap();
+
         if !transaction.mints.is_empty()
-            && !is_complete_mint(
-                transaction.mints.last().unwrap().to_string(),
-                db,
-            )
-            .await
+            && !is_complete_mint(mint, db).await
         {
-            let mint = db
-                .get_mint(transaction.mints.last().unwrap())
-                .await
-                .unwrap();
+            let mint = transaction.mints.last().unwrap().as_ref().unwrap();
+
+            let mint = db.get_mint(mint).await.unwrap();
 
             burn.fee_to = mint.to;
             burn.fee_liquidity = mint.liquidity;
@@ -197,11 +195,12 @@ pub async fn handle_transfer(
         db.update_burn(&burn).await;
 
         if burn.needs_complete {
-            transaction
-                .burns
-                .insert(transaction.burns.len() - 1, burn.id.clone());
+            transaction.burns.insert(
+                transaction.burns.len() - 1,
+                Some(burn.id.clone()),
+            );
         } else {
-            transaction.burns.push(burn.id);
+            transaction.burns.push(Some(burn.id));
         }
 
         db.update_transaction(&transaction).await;

@@ -9,11 +9,10 @@ use crate::{
 #[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = factories)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-
 pub struct DatabaseFactory {
     pub id: String,
     pub pair_count: i32,
-    pub pairs: Vec<String>,
+    pub pairs: Vec<Option<String>>,
     pub total_volume_usd: BigDecimal,
     pub total_volume_eth: BigDecimal,
     pub untracked_volume_usd: BigDecimal,

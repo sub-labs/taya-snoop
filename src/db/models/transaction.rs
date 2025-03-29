@@ -5,14 +5,13 @@ use crate::db::schema::transactions;
 #[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = transactions)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-
 pub struct DatabaseTransaction {
     pub id: String,
     pub block_number: i32,
     pub timestamp: i32,
-    pub mints: Vec<String>,
-    pub burns: Vec<String>,
-    pub swaps: Vec<String>,
+    pub mints: Vec<Option<String>>,
+    pub swaps: Vec<Option<String>>,
+    pub burns: Vec<Option<String>>,
 }
 
 impl DatabaseTransaction {

@@ -50,14 +50,14 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
     }
 
     let last_chain_block = match rpc.get_last_block().await {
-        Some(last_chain_block) => last_chain_block as i64,
+        Some(last_chain_block) => last_chain_block,
         None => return,
     };
 
-    let sync_blocks: Vec<i64> =
+    let sync_blocks: Vec<i32> =
         (last_synced_block + 1..=last_chain_block).collect();
 
-    let sync_blocks_chunks: std::slice::Chunks<'_, i64> =
+    let sync_blocks_chunks: std::slice::Chunks<'_, i32> =
         sync_blocks.chunks(config.batch_size);
 
     info!(
@@ -86,9 +86,15 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
         let factory = db.get_factory().await;
 
         if !factory.pairs.is_empty() {
+            let pairs: Vec<String> = factory
+                .pairs
+                .into_iter()
+                .map(|pair| pair.unwrap())
+                .collect();
+
             let mut event_logs = match rpc
                 .get_pairs_logs_batch(
-                    &factory.pairs,
+                    &pairs,
                     first_block as u64,
                     last_block as u64,
                 )
@@ -110,13 +116,13 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
                 (block_number, log_index)
             });
 
-            let mut block_timestamps: HashMap<i64, i64> = HashMap::new();
+            let mut block_timestamps: HashMap<i32, i32> = HashMap::new();
 
             for log in event_logs {
                 match log.topic0() {
                     Some(topic_raw) => {
                         let block_number =
-                            log.block_number.unwrap() as i64;
+                            log.block_number.unwrap() as i32;
 
                         let block_timestamp = match block_timestamps
                             .get(&block_number)
@@ -169,6 +175,6 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
             info!("Procesed {} mints {} burns {} swaps {} sync and {} transfer events", count_mints, count_burns, count_swaps, count_syncs, count_transfers);
         }
 
-        db.update_last_block_indexed(last_block).await;
+        db.update_state(last_block).await;
     }
 }

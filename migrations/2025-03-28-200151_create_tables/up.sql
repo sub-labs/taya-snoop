@@ -1,13 +1,13 @@
 CREATE TABLE factories (
     id TEXT PRIMARY KEY,
     pair_count INTEGER NOT NULL,
+    pairs TEXT[] NOT NULL,
     total_volume_usd NUMERIC NOT NULL,
     total_volume_eth NUMERIC NOT NULL,
     untracked_volume_usd NUMERIC NOT NULL,
     total_liquidity_usd NUMERIC NOT NULL,
     total_liquidity_eth NUMERIC NOT NULL,
-    tx_count INTEGER NOT NULL,
-    pairs TEXT[] NOT NULL
+    tx_count INTEGER NOT NULL
 );
 
 CREATE TABLE tokens (
@@ -70,9 +70,7 @@ CREATE TABLE mints (
     log_index INTEGER NOT NULL,
     amount_usd NUMERIC NOT NULL,
     fee_to TEXT NOT NULL,
-    fee_liquidity NUMERIC NOT NULL,
-    CONSTRAINT transaction_data FOREIGN KEY (transaction) REFERENCES transactions(id),
-    CONSTRAINT pair_data FOREIGN KEY (pair) REFERENCES pairs(id)
+    fee_liquidity NUMERIC NOT NULL
 );
 
 CREATE TABLE burns (
@@ -89,9 +87,7 @@ CREATE TABLE burns (
     amount_usd NUMERIC NOT NULL,
     needs_complete BOOLEAN NOT NULL,
     fee_to TEXT NOT NULL,
-    fee_liquidity NUMERIC NOT NULL,
-    CONSTRAINT transaction_data FOREIGN KEY (transaction) REFERENCES transactions(id),
-    CONSTRAINT pair_data FOREIGN KEY (pair) REFERENCES pairs(id)
+    fee_liquidity NUMERIC NOT NULL
 );
 
 CREATE TABLE swaps (
@@ -107,9 +103,7 @@ CREATE TABLE swaps (
     amount1_out NUMERIC NOT NULL,
     "to" TEXT NOT NULL,
     log_index INTEGER NOT NULL,
-    amount_usd NUMERIC NOT NULL,
-    CONSTRAINT transaction_data FOREIGN KEY (transaction) REFERENCES transactions(id),
-    CONSTRAINT pair_data FOREIGN KEY (pair) REFERENCES pairs(id)
+    amount_usd NUMERIC NOT NULL
 );
 
 CREATE TABLE bundles (

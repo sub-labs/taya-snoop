@@ -8,7 +8,7 @@ fn exponent_to_big_decimal(decimals: i32) -> BigDecimal {
 
     let mut i = 0;
     while i < decimals {
-        bd = bd * 10;
+        bd *= 10;
         i += 1;
     }
 
@@ -36,13 +36,13 @@ pub fn parse_u112(u: alloy::primitives::Uint<112, 2>) -> BigDecimal {
 }
 
 pub fn zero_bd() -> BigDecimal {
-    return BigDecimal::from(0);
+    BigDecimal::from(0)
 }
 
 pub fn one_bd() -> BigDecimal {
-    return BigDecimal::from(1);
+    BigDecimal::from(1)
 }
 
 pub fn address_zero() -> String {
-    return Address::ZERO.to_string().to_lowercase();
+    Address::ZERO.to_string().to_lowercase()
 }

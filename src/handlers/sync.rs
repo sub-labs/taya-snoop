@@ -23,8 +23,10 @@ pub async fn handle_sync(
 ) {
     let event = Sync::decode_log(&log.inner, true).unwrap();
 
+    let pair_address = event.address.to_string().to_lowercase();
+
     // Get the pair
-    let mut pair = db.get_pair(&event.address.to_string()).await.unwrap();
+    let mut pair = db.get_pair(&pair_address).await.unwrap();
 
     // Get the token0
     let mut token0 = db.get_token(&pair.token0).await.unwrap();
@@ -34,8 +36,7 @@ pub async fn handle_sync(
     // Load the factory
     let mut factory = db.get_factory().await;
 
-    factory.total_liquidity_eth =
-        factory.total_liquidity_eth - pair.tracked_reserve_eth.clone();
+    factory.total_liquidity_eth -= pair.tracked_reserve_eth.clone();
 
     token0.total_liquidity = token0.total_liquidity.min(pair.reserve0);
     token1.total_liquidity = token1.total_liquidity.min(pair.reserve1);
@@ -100,17 +101,14 @@ pub async fn handle_sync(
 
     pair.reserve_usd = pair.reserve_eth.clone() * bundle.eth_price.clone();
 
-    factory.total_liquidity_eth =
-        factory.total_liquidity_eth + tracked_liquidity_eth;
+    factory.total_liquidity_eth += tracked_liquidity_eth;
 
     factory.total_liquidity_usd =
         factory.total_liquidity_eth.clone() * bundle.eth_price;
 
-    token0.total_liquidity =
-        token0.total_liquidity + pair.reserve0.clone();
+    token0.total_liquidity += pair.reserve0.clone();
 
-    token1.total_liquidity =
-        token1.total_liquidity * pair.reserve1.clone();
+    token1.total_liquidity *= pair.reserve1.clone();
 
     db.update_pair(&pair).await;
     db.update_factory(&factory).await;

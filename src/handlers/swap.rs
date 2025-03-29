@@ -99,39 +99,31 @@ pub async fn handle_swap(
             false => tracked_amount_usd.clone() / bundle.eth_price.clone(),
         };
 
-    token0.trade_volume =
-        token0.trade_volume + (amount0_in.clone() + amount0_out.clone());
-    token0.trade_volume_usd =
-        token0.trade_volume_usd + tracked_amount_usd.clone();
-    token0.untracked_volume_usd =
-        token0.untracked_volume_usd + derived_amount_usd.clone();
+    token0.trade_volume += amount0_in.clone() + amount0_out.clone();
+    token0.trade_volume_usd += tracked_amount_usd.clone();
+    token0.untracked_volume_usd += derived_amount_usd.clone();
 
-    token1.trade_volume =
-        token1.trade_volume + (amount1_in.clone() + amount1_out.clone());
-    token1.trade_volume_usd =
-        token1.trade_volume_usd + tracked_amount_usd.clone();
-    token1.untracked_volume_usd =
-        token1.untracked_volume_usd + derived_amount_usd.clone();
+    token1.trade_volume += amount1_in.clone() + amount1_out.clone();
+    token1.trade_volume_usd += tracked_amount_usd.clone();
+    token1.untracked_volume_usd += derived_amount_usd.clone();
 
     token0.tx_count += 1;
     token1.tx_count += 1;
 
-    pair.volume_usd = pair.volume_usd + tracked_amount_usd.clone();
-    pair.volume_token0 = pair.volume_token0 + amount0_total.clone();
-    pair.volume_token1 = pair.volume_token1 + amount1_total.clone();
-    pair.untracked_volume_usd =
-        pair.untracked_volume_usd + derived_amount_usd.clone();
+    pair.volume_usd += tracked_amount_usd.clone();
+    pair.volume_token0 += amount0_total.clone();
+    pair.volume_token1 += amount1_total.clone();
+    pair.untracked_volume_usd += derived_amount_usd.clone();
     pair.tx_count += 1;
 
     db.update_pair(&pair).await;
 
     let mut factory = db.get_factory().await;
-    factory.total_volume_usd =
-        factory.total_volume_usd + tracked_amount_usd.clone();
+    factory.total_volume_usd += tracked_amount_usd.clone();
     factory.total_volume_eth =
         factory.total_volume_eth.clone() + tracked_amount_eth.clone();
-    factory.untracked_volume_usd =
-        factory.untracked_volume_usd + derived_amount_usd.clone();
+
+    factory.untracked_volume_usd += derived_amount_usd.clone();
 
     factory.tx_count += 1;
 
@@ -183,7 +175,7 @@ pub async fn handle_swap(
 
     db.update_swap(&swap).await;
 
-    transaction.swaps.push(swap.id.clone());
+    transaction.swaps.push(Some(swap.id.clone()));
 
     db.update_transaction(&transaction).await;
 
@@ -197,48 +189,39 @@ pub async fn handle_swap(
     let mut token1_day_data =
         update_token_day_data(&token1, block_timestamp, db).await;
 
-    dex_day_data.daily_volume_usd =
-        dex_day_data.daily_volume_usd + tracked_amount_usd.clone();
-    dex_day_data.daily_volume_eth =
-        dex_day_data.daily_volume_eth + tracked_amount_eth;
-    dex_day_data.daily_volume_untracked =
-        dex_day_data.daily_volume_untracked + derived_amount_usd;
+    dex_day_data.daily_volume_usd += tracked_amount_usd.clone();
+    dex_day_data.daily_volume_eth += tracked_amount_eth;
+    dex_day_data.daily_volume_untracked += derived_amount_usd;
 
     db.update_dex_day_data(&dex_day_data).await;
 
-    pair_day_data.daily_volume_token0 =
-        pair_day_data.daily_volume_token0 + amount0_total.clone();
-    pair_day_data.daily_volume_token1 =
-        pair_day_data.daily_volume_token1 + amount1_total.clone();
-    pair_day_data.daily_volume_usd =
-        pair_day_data.daily_volume_usd + tracked_amount_usd.clone();
+    pair_day_data.daily_volume_token0 += amount0_total.clone();
+    pair_day_data.daily_volume_token1 += amount1_total.clone();
+    pair_day_data.daily_volume_usd += tracked_amount_usd.clone();
 
     db.update_pair_day_data(&pair_day_data).await;
 
-    pair_hour_data.hourly_volume_token0 =
-        pair_hour_data.hourly_volume_token0 + amount0_total.clone();
-    pair_hour_data.hourly_volume_token1 =
-        pair_hour_data.hourly_volume_token1 + amount1_total.clone();
-    pair_hour_data.hourly_volume_usd =
-        pair_hour_data.hourly_volume_usd + tracked_amount_usd.clone();
+    pair_hour_data.hourly_volume_token0 += amount0_total.clone();
+    pair_hour_data.hourly_volume_token1 += amount1_total.clone();
+    pair_hour_data.hourly_volume_usd += tracked_amount_usd.clone();
 
     db.update_pair_hour_data(&pair_hour_data).await;
 
-    token0_day_data.daily_volume_token =
-        token0_day_data.daily_volume_token + amount0_total.clone();
-    token0_day_data.daily_volume_eth = token0_day_data.daily_volume_eth
-        + (amount0_total.clone() * token0.derived_eth.clone());
-    token0_day_data.daily_volume_usd = token0_day_data.daily_volume_usd
-        + (amount0_total * token0.derived_eth * bundle.eth_price.clone());
+    token0_day_data.daily_volume_token += amount0_total.clone();
+    token0_day_data.daily_volume_eth +=
+        amount0_total.clone() * token0.derived_eth.clone();
+    token0_day_data.daily_volume_usd +=
+        amount0_total * token0.derived_eth * bundle.eth_price.clone();
 
     db.update_token_day_data(&token0_day_data).await;
 
-    token1_day_data.daily_volume_token =
-        token1_day_data.daily_volume_token + amount1_total.clone();
-    token1_day_data.daily_volume_eth = token1_day_data.daily_volume_eth
-        + (amount1_total.clone() * token1.derived_eth.clone());
-    token1_day_data.daily_volume_usd = token1_day_data.daily_volume_usd
-        + (amount1_total * token1.derived_eth * bundle.eth_price);
+    token1_day_data.daily_volume_token += amount1_total.clone();
+
+    token1_day_data.daily_volume_eth +=
+        amount1_total.clone() * token1.derived_eth.clone();
+
+    token1_day_data.daily_volume_usd +=
+        amount1_total * token1.derived_eth * bundle.eth_price;
 
     db.update_token_day_data(&token1_day_data).await;
 }

@@ -32,7 +32,7 @@ pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
 
         // Add the pair to the count
         factory.pair_count += 1;
-        factory.pairs.push(pair_address);
+        factory.pairs.push(Some(pair_address));
 
         // Load the token0
         let token0 = db.get_token(&token0_address.clone()).await;

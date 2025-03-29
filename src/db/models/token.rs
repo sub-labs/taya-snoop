@@ -6,7 +6,6 @@ use crate::{db::schema::tokens, utils::format::zero_bd};
 #[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = tokens)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-
 pub struct DatabaseToken {
     pub id: String,
     pub symbol: String,

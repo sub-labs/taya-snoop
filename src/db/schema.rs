@@ -45,13 +45,13 @@ diesel::table! {
     factories (id) {
         id -> Text,
         pair_count -> Int4,
+        pairs -> Array<Nullable<Text>>,
         total_volume_usd -> Numeric,
         total_volume_eth -> Numeric,
         untracked_volume_usd -> Numeric,
         total_liquidity_usd -> Numeric,
         total_liquidity_eth -> Numeric,
         tx_count -> Int4,
-        pairs -> Array<Nullable<Text>>,
     }
 }
 
@@ -199,14 +199,8 @@ diesel::table! {
     }
 }
 
-diesel::joinable!(burns -> pairs (pair));
-diesel::joinable!(burns -> transactions (transaction));
-diesel::joinable!(mints -> pairs (pair));
-diesel::joinable!(mints -> transactions (transaction));
 diesel::joinable!(pair_day_data -> pairs (pair_address));
 diesel::joinable!(pair_hour_data -> pairs (pair));
-diesel::joinable!(swaps -> pairs (pair));
-diesel::joinable!(swaps -> transactions (transaction));
 diesel::joinable!(token_day_data -> tokens (token));
 
 diesel::allow_tables_to_appear_in_same_query!(

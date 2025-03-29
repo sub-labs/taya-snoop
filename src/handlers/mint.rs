@@ -27,12 +27,17 @@ pub async fn handle_mint(log: Log, timestamp: i32, db: &Database) {
     let transaction = transaction.unwrap();
 
     let mints = transaction.mints.clone();
-    let mint = db.get_mint(mints.last().unwrap()).await;
+
+    let mint = mints.last().unwrap().as_ref().unwrap();
+
+    let mint = db.get_mint(mint).await;
     if mint.is_none() {
         return;
     }
 
-    let mut pair = db.get_pair(&event.address.to_string()).await.unwrap();
+    let pair_address = event.address.to_string().to_lowercase();
+
+    let mut pair = db.get_pair(&pair_address).await.unwrap();
 
     let mut factory = db.get_factory().await;
 

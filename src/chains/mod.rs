@@ -5,7 +5,7 @@ pub struct Chain {
     pub id: u64,
     pub name: &'static str,
     pub factory: &'static str,
-    pub start_block: i64,
+    pub start_block: i32,
     pub weth: &'static str,
     pub whitelist_tokens: &'static [&'static str],
     pub usdc_weth_pair: Option<&'static str>,

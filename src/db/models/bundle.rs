@@ -9,7 +9,6 @@ use crate::{
 #[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = bundles)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
-
 pub struct DatabaseBundle {
     pub id: String,
     pub eth_price: BigDecimal,
