@@ -26,11 +26,6 @@ cargo build --release
 
 ## Docker
 
-Build the docker image
-```
-docker build . -t snoop
-```
-
 Copy the `.env.example` and rename it to `.env `
 
 Start the indexer

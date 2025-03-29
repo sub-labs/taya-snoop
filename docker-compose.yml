@@ -1,8 +1,9 @@
 services:
   graphql:
-    image: graphile/postgraphile:latest
     container_name: graphql
     restart: always
+    build:
+      context: ./graphql
     depends_on:
       postgres:
         condition: service_healthy
@@ -30,8 +31,9 @@ services:
     env_file: "./.env"
 
   indexer:
-    image: snoop
     container_name: indexer
+    build:
+      context: .
     depends_on:
       postgres:
         condition: service_healthy
