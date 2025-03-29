@@ -51,6 +51,7 @@ diesel::table! {
         total_liquidity_usd -> Numeric,
         total_liquidity_eth -> Numeric,
         tx_count -> Int4,
+        pairs -> Array<Nullable<Text>>,
     }
 }
 
@@ -192,6 +193,9 @@ diesel::table! {
         id -> Text,
         block_number -> Int4,
         timestamp -> Int4,
+        mints -> Array<Nullable<Text>>,
+        swaps -> Array<Nullable<Text>>,
+        burns -> Array<Nullable<Text>>,
     }
 }
 

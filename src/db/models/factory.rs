@@ -13,6 +13,7 @@ use crate::{
 pub struct DatabaseFactory {
     pub id: String,
     pub pair_count: i32,
+    pub pairs: Vec<String>,
     pub total_volume_usd: BigDecimal,
     pub total_volume_eth: BigDecimal,
     pub untracked_volume_usd: BigDecimal,
@@ -32,6 +33,7 @@ impl DatabaseFactory {
         Self {
             id: DatabaseKeys::Factory.as_str().to_owned(),
             pair_count: 0,
+            pairs: vec![],
             total_volume_usd: zero_bd(),
             total_volume_eth: zero_bd(),
             untracked_volume_usd: zero_bd(),

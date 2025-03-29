@@ -1,8 +1,10 @@
-use alloy::primitives::Address;
 use bigdecimal::BigDecimal;
 use diesel::{AsChangeset, Insertable, Queryable};
 
-use crate::{db::schema::burns, utils::format::zero_bd};
+use crate::{
+    db::schema::burns,
+    utils::format::{address_zero, zero_bd},
+};
 
 #[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = burns)]
@@ -49,7 +51,7 @@ impl DatabaseBurn {
             amount1: zero_bd(),
             log_index,
             amount_usd: zero_bd(),
-            fee_to: Address::ZERO.to_string(),
+            fee_to: address_zero(),
             fee_liquidity: zero_bd(),
             needs_complete,
         }

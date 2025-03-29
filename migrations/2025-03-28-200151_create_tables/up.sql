@@ -6,7 +6,8 @@ CREATE TABLE factories (
     untracked_volume_usd NUMERIC NOT NULL,
     total_liquidity_usd NUMERIC NOT NULL,
     total_liquidity_eth NUMERIC NOT NULL,
-    tx_count INTEGER NOT NULL
+    tx_count INTEGER NOT NULL,
+    pairs TEXT[] NOT NULL
 );
 
 CREATE TABLE tokens (
@@ -50,7 +51,10 @@ CREATE TABLE pairs (
 CREATE TABLE transactions (
     id TEXT PRIMARY KEY,
     block_number INTEGER NOT NULL,
-    timestamp INTEGER NOT NULL
+    timestamp INTEGER NOT NULL,
+    mints TEXT[] NOT NULL,
+    swaps TEXT[] NOT NULL,
+    burns TEXT[] NOT NULL
 );
 
 CREATE TABLE mints (

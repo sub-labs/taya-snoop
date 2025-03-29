@@ -1,8 +1,10 @@
-use alloy::primitives::Address;
 use bigdecimal::BigDecimal;
 use diesel::{AsChangeset, Insertable, Queryable};
 
-use crate::{db::schema::mints, utils::format::zero_bd};
+use crate::{
+    db::schema::mints,
+    utils::format::{address_zero, zero_bd},
+};
 
 #[derive(Queryable, Insertable, Debug, Clone, AsChangeset)]
 #[diesel(table_name = mints)]
@@ -39,12 +41,12 @@ impl DatabaseMint {
             pair,
             to,
             liquidity: zero_bd(),
-            sender: Address::ZERO.to_string(),
+            sender: address_zero(),
             amount0: zero_bd(),
             amount1: zero_bd(),
             log_index,
             amount_usd: zero_bd(),
-            fee_to: Address::ZERO.to_string(),
+            fee_to: address_zero(),
             fee_liquidity: zero_bd(),
         }
     }

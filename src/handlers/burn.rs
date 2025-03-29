@@ -1,19 +1,23 @@
 use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
-use fastnum::UD256;
 
-use crate::{db::Database, utils::format::parse_ud256};
+use crate::{
+    db::Database,
+    utils::format::{convert_token_to_decimal, parse_u256},
+};
 
 use super::utils::{
-    convert_token_to_decimal, update_factory_day_data,
-    update_pair_day_data, update_pair_hour_data, update_token_day_data,
+    update_dex_day_data, update_pair_day_data, update_pair_hour_data,
+    update_token_day_data,
 };
 
 sol! {
     event Burn(address indexed sender, uint amount0, uint amount1, address indexed to);
 }
 
-pub async fn handle_burn(log: Log, timestamp: i64, db: &Database) {
+pub async fn handle_burn(log: Log, timestamp: i32, db: &Database) {
     let event = Burn::decode_log(&log.inner, true).unwrap();
+
+    let sender_address = event.sender.to_string().to_lowercase();
 
     let transaction_hash = log.transaction_hash.unwrap().to_string();
 
@@ -45,13 +49,13 @@ pub async fn handle_burn(log: Log, timestamp: i64, db: &Database) {
     let mut token1 = token1.unwrap();
 
     let token0_amount = convert_token_to_decimal(
-        &parse_ud256(event.amount0),
-        &UD256::from(token0.decimals),
+        &parse_u256(event.amount0),
+        token0.decimals,
     );
 
     let token1_amount = convert_token_to_decimal(
-        &parse_ud256(event.amount1),
-        &UD256::from(token1.decimals),
+        &parse_u256(event.amount1),
+        token1.decimals,
     );
 
     token0.tx_count += 1;
@@ -59,10 +63,10 @@ pub async fn handle_burn(log: Log, timestamp: i64, db: &Database) {
 
     let bundle = db.get_bundle().await;
 
-    let amount_total_usd = token1
-        .derived_eth
-        .mul(token1_amount)
-        .add(token0.derived_eth.mul(bundle.eth_price));
+    let amount_total_usd = (token1.derived_eth.clone()
+        * token1_amount.clone())
+        + (token0.derived_eth.clone() * token0_amount.clone())
+            * bundle.eth_price;
 
     pair.tx_count += 1;
     factory.tx_count += 1;
@@ -73,10 +77,10 @@ pub async fn handle_burn(log: Log, timestamp: i64, db: &Database) {
     db.update_factory(&factory).await;
 
     let mut burn = burn.unwrap();
-    burn.sender = Some(event.sender.to_string().to_lowercase());
+    burn.sender = sender_address;
     burn.amount0 = token0_amount;
     burn.amount1 = token1_amount;
-    burn.log_index = log.log_index.unwrap() as i64;
+    burn.log_index = log.log_index.unwrap() as i32;
     burn.amount_usd = amount_total_usd;
 
     db.update_factory(&factory).await;
@@ -85,7 +89,7 @@ pub async fn handle_burn(log: Log, timestamp: i64, db: &Database) {
 
     update_pair_day_data(&log, timestamp, db).await;
     update_pair_hour_data(&log, timestamp, db).await;
-    update_factory_day_data(db, timestamp).await;
+    update_dex_day_data(db, timestamp).await;
     update_token_day_data(&token0, timestamp, db).await;
     update_token_day_data(&token1, timestamp, db).await;
 }

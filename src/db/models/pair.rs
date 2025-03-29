@@ -3,7 +3,7 @@ use bigdecimal::BigDecimal;
 use diesel::{AsChangeset, Insertable, Queryable};
 
 use crate::{
-    abi::factory::FACTORY::PairCreated, db::schema::pairs,
+    db::schema::pairs, handlers::pairs::PairCreated,
     utils::format::zero_bd,
 };
 

@@ -3,7 +3,7 @@ use crate::{
     db::{
         models::{
             data::{
-                DatabaseFactoryDayData, DatabasePairDayData,
+                DatabaseDexDayData, DatabasePairDayData,
                 DatabasePairHourData, DatabaseTokenDayData,
             },
             pair::DatabasePair,
@@ -12,20 +12,15 @@ use crate::{
         Database,
     },
     rpc::Rpc,
+    utils::format::{address_zero, one_bd, zero_bd},
 };
-use alloy::{primitives::Address, rpc::types::Log};
-use fastnum::{decimal::Context, udec256, UD256};
+use alloy::rpc::types::Log;
+use bigdecimal::BigDecimal;
 
-pub const MINIMUM_USD_THRESHOLD_NEW_PAIRS: UD256 = udec256!(50000);
-
-pub const MINIMUM_LIQUIDITY_THRESHOLD_ETH: UD256 = udec256!(2);
-
-pub async fn get_eth_price_usd(db: &Database, config: &Config) -> UD256 {
-    let dai_pair = match config.chain.dai_weth_pair {
-        Some(pair) => db.get_pair(&pair.to_string()).await,
-        None => None,
-    };
-
+pub async fn get_eth_price_usd(
+    db: &Database,
+    config: &Config,
+) -> BigDecimal {
     let usdc_pair = match config.chain.usdc_weth_pair {
         Some(pair) => db.get_pair(&pair.to_string()).await,
         None => None,
@@ -36,41 +31,21 @@ pub async fn get_eth_price_usd(db: &Database, config: &Config) -> UD256 {
         None => None,
     };
 
-    match (dai_pair, usdc_pair, usdt_pair) {
-        (Some(dai), Some(usdc), Some(usdt)) => {
+    match (usdc_pair, usdt_pair) {
+        (Some(usdc), Some(usdt)) => {
             let total_liquidity_eth =
-                dai.reserve1.add(usdt.reserve0).add(usdc.reserve1);
+                usdt.reserve0.clone() + usdc.reserve0.clone();
 
-            if total_liquidity_eth.eq(&udec256!(0)) {
-                return udec256!(0);
-            }
+            let usdt_weight = usdt.reserve0 / total_liquidity_eth.clone();
 
-            let dai_weight = dai.reserve1.div(total_liquidity_eth);
-            let usdc_weight = usdc.reserve1.div(total_liquidity_eth);
-            let usdt_weight = usdt.reserve0.div(total_liquidity_eth);
+            let usdc_weight = usdc.reserve0 / total_liquidity_eth.clone();
 
-            dai.token0_price
-                .mul(dai_weight)
-                .add(usdc.token0_price.mul(usdc_weight))
-                .add(usdt.token1_price.mul(usdt_weight))
+            (usdt.token1_price * usdt_weight)
+                + (usdc.token1_price * usdc_weight)
         }
-        (Some(dai), Some(usdc), None) => {
-            let total_liquidity_eth = dai.reserve1.add(usdc.reserve1);
-
-            if total_liquidity_eth.eq(&udec256!(0)) {
-                return udec256!(0);
-            }
-
-            let dai_weight = dai.reserve1.div(total_liquidity_eth);
-            let usdc_weight = usdc.reserve1.div(total_liquidity_eth);
-
-            dai.token0_price
-                .mul(dai_weight)
-                .add(usdc.token0_price.mul(usdc_weight))
-        }
-        (_, Some(usdc), _) => usdc.token0_price,
+        (Some(usdc), _) => usdc.token1_price,
         // No pairs
-        _ => udec256!(0),
+        _ => zero_bd(),
     }
 }
 
@@ -79,22 +54,27 @@ pub async fn find_eth_per_token(
     rpc: &Rpc,
     db: &Database,
     config: &Config,
-) -> UD256 {
-    if token.id == config.chain.weth.to_string() {
-        return udec256!(1);
+) -> BigDecimal {
+    let token_address = token.id.to_lowercase();
+
+    if token_address == config.chain.weth.to_string() {
+        return one_bd();
     }
 
     // Loop through a set of whitelisted tokens to check if there is any pair for this token.
     for whitelist_token in config.chain.whitelist_tokens {
+        let whitelist_token_address = whitelist_token.to_lowercase();
+
         let pair_address = rpc
             .get_pair_for_tokens(
-                token.id.clone(),
-                whitelist_token.to_owned().to_lowercase(),
+                token_address.clone(),
+                whitelist_token_address,
                 config,
             )
-            .await;
+            .await
+            .to_lowercase();
 
-        if pair_address != Address::ZERO.to_string() {
+        if pair_address != address_zero() {
             let pair = db.get_pair(&pair_address).await;
 
             if pair.is_none() {
@@ -103,153 +83,186 @@ pub async fn find_eth_per_token(
 
             let pair = pair.unwrap();
 
-            if pair.token0 == token.id
-                && pair.reserve_eth.gt(&MINIMUM_LIQUIDITY_THRESHOLD_ETH)
+            let pair_token0_address = pair.token0.to_lowercase();
+            let pair_token1_address = pair.token0.to_lowercase();
+
+            if pair_token0_address == token_address
+                && pair.reserve_eth
+                    > BigDecimal::from(
+                        config.chain.minimum_liquidity_threshold_eth,
+                    )
             {
-                let token0 = db.get_token(&pair.token0).await;
+                let token0 = db.get_token(&pair_token0_address).await;
                 if token0.is_none() {
                     continue;
                 }
 
                 let token0 = token0.unwrap();
 
-                return pair.token0_price.mul(token0.derived_eth);
+                return pair.token0_price * token0.derived_eth;
             }
 
-            if pair.token1 == token.id
-                && pair.reserve_eth.gt(&MINIMUM_LIQUIDITY_THRESHOLD_ETH)
+            if pair_token1_address == token_address
+                && pair.reserve_eth
+                    > BigDecimal::from(
+                        config.chain.minimum_liquidity_threshold_eth,
+                    )
             {
-                let token1 = db.get_token(&pair.token1).await;
+                let token1 = db.get_token(&pair_token1_address).await;
                 if token1.is_none() {
                     continue;
                 }
 
                 let token1 = token1.unwrap();
 
-                return pair.token1_price.mul(token1.derived_eth);
+                return pair.token1_price * token1.derived_eth;
             }
         }
     }
 
-    udec256!(0)
+    zero_bd()
 }
 
 pub async fn get_tracked_volume_usd(
-    token_amount0: UD256,
+    token_amount0: BigDecimal,
     token0: &DatabaseToken,
-    token_amount1: UD256,
+    token_amount1: BigDecimal,
     token1: &DatabaseToken,
     pair: &DatabasePair,
     db: &Database,
     config: &Config,
-) -> UD256 {
+) -> BigDecimal {
     let bundle = db.get_bundle().await;
 
-    let price0 = token0.derived_eth.mul(bundle.eth_price);
-    let price1 = token1.derived_eth.mul(bundle.eth_price);
+    let price0: BigDecimal =
+        token0.derived_eth.clone() * bundle.eth_price.clone();
+    let price1: BigDecimal =
+        token1.derived_eth.clone() * bundle.eth_price.clone();
+
+    let token0_address = token0.id.to_lowercase();
+    let token1_address = token1.id.to_lowercase();
 
     if pair.liquidity_provider_count < 5 {
-        let reserve0_usd = pair.reserve0.mul(price0);
-        let reserve1_usd = pair.reserve1.mul(price1);
+        let reserve0_usd = pair.reserve0.clone() * price0.clone();
+        let reserve1_usd = pair.reserve1.clone() * price1.clone();
 
-        if config.chain.whitelist_tokens.contains(&token0.id.as_str())
-            && config.chain.whitelist_tokens.contains(&token1.id.as_str())
-            && reserve0_usd
-                .add(reserve1_usd)
-                .lt(&MINIMUM_USD_THRESHOLD_NEW_PAIRS)
+        let minimum_usd_threshold =
+            BigDecimal::from(config.chain.minimum_usd_threshold_new_pairs);
+
+        if config.chain.whitelist_tokens.contains(&token0_address.as_str())
+            && config
+                .chain
+                .whitelist_tokens
+                .contains(&token1_address.as_str())
+            && (reserve0_usd.clone() + reserve1_usd.clone())
+                < minimum_usd_threshold
         {
-            return udec256!(0);
+            return zero_bd();
         }
 
-        if config.chain.whitelist_tokens.contains(&token0.id.as_str())
-            && !config.chain.whitelist_tokens.contains(&token1.id.as_str())
-            && reserve0_usd
-                .mul(udec256!(2))
-                .lt(&MINIMUM_USD_THRESHOLD_NEW_PAIRS)
+        if config.chain.whitelist_tokens.contains(&token0_address.as_str())
+            && !config
+                .chain
+                .whitelist_tokens
+                .contains(&token1_address.as_str())
+            && (reserve0_usd.clone() * 2) < minimum_usd_threshold
         {
-            return udec256!(0);
+            return zero_bd();
         }
 
-        if !config.chain.whitelist_tokens.contains(&token0.id.as_str())
-            && config.chain.whitelist_tokens.contains(&token1.id.as_str())
-            && reserve1_usd
-                .mul(udec256!(2))
-                .lt(&MINIMUM_USD_THRESHOLD_NEW_PAIRS)
+        if !config
+            .chain
+            .whitelist_tokens
+            .contains(&token0_address.as_str())
+            && config
+                .chain
+                .whitelist_tokens
+                .contains(&token1_address.as_str())
+            && (reserve1_usd * 2) < minimum_usd_threshold
         {
-            return udec256!(0);
+            return zero_bd();
         }
     }
 
-    if config.chain.whitelist_tokens.contains(&token0.id.as_str())
-        && config.chain.whitelist_tokens.contains(&token1.id.as_str())
+    if config.chain.whitelist_tokens.contains(&token0_address.as_str())
+        && config.chain.whitelist_tokens.contains(&token1_address.as_str())
     {
-        return token_amount0
-            .mul(price0)
-            .add(token_amount1.mul(price1))
-            .div(udec256!(2));
+        return ((token_amount0 * price0) + (token_amount1 * price1)) / 2;
     }
 
-    if config.chain.whitelist_tokens.contains(&token0.id.as_str())
-        && !config.chain.whitelist_tokens.contains(&token1.id.as_str())
+    if config.chain.whitelist_tokens.contains(&token0_address.as_str())
+        && !config
+            .chain
+            .whitelist_tokens
+            .contains(&token1_address.as_str())
     {
-        return token_amount0.mul(price0);
+        return token_amount0 * price0;
     }
 
-    if !config.chain.whitelist_tokens.contains(&token0.id.as_str())
-        && config.chain.whitelist_tokens.contains(&token1.id.as_str())
+    if !config.chain.whitelist_tokens.contains(&token0_address.as_str())
+        && config.chain.whitelist_tokens.contains(&token1_address.as_str())
     {
-        return token_amount1.mul(price1);
+        return token_amount1 * price1;
     }
 
-    udec256!(0)
+    zero_bd()
 }
 
 pub async fn get_tracked_liquidity_usd(
-    token_amount0: UD256,
+    token_amount0: BigDecimal,
     token0: &DatabaseToken,
-    token_amount1: UD256,
+    token_amount1: BigDecimal,
     token1: &DatabaseToken,
     db: &Database,
     config: &Config,
-) -> UD256 {
+) -> BigDecimal {
     let bundle = db.get_bundle().await;
 
-    let price0 = token0.derived_eth.mul(bundle.eth_price);
-    let price1 = token1.derived_eth.mul(bundle.eth_price);
+    let price0 = token0.derived_eth.clone() * bundle.eth_price.clone();
+    let price1 = token1.derived_eth.clone() * bundle.eth_price.clone();
 
-    if config.chain.whitelist_tokens.contains(&token0.id.as_str())
-        && config.chain.whitelist_tokens.contains(&token1.id.as_str())
+    let token0_address = token0.id.to_lowercase();
+    let token1_address = token1.id.to_lowercase();
+
+    if config.chain.whitelist_tokens.contains(&token0_address.as_str())
+        && config.chain.whitelist_tokens.contains(&token1_address.as_str())
     {
-        return token_amount0.mul(price0).add(token_amount1.mul(price1));
+        return (token_amount0 * price0) + (token_amount1 * price1);
     }
 
-    if config.chain.whitelist_tokens.contains(&token0.id.as_str())
-        && !config.chain.whitelist_tokens.contains(&token1.id.as_str())
+    if config.chain.whitelist_tokens.contains(&token0_address.as_str())
+        && !config
+            .chain
+            .whitelist_tokens
+            .contains(&token1_address.as_str())
     {
-        return token_amount0.mul(price0).mul(udec256!(2));
+        return (token_amount0 * price0) * 2;
     }
 
-    if !config.chain.whitelist_tokens.contains(&token0.id.as_str())
-        && !config.chain.whitelist_tokens.contains(&token1.id.as_str())
+    if !config.chain.whitelist_tokens.contains(&token0_address.as_str())
+        && !config
+            .chain
+            .whitelist_tokens
+            .contains(&token1_address.as_str())
     {
-        return token_amount1.mul(price1).mul(udec256!(2));
+        return (token_amount1 * price1) * 2;
     }
 
-    udec256!(0)
+    zero_bd()
 }
 
-pub async fn update_factory_day_data(
+pub async fn update_dex_day_data(
     db: &Database,
-    timestamp: i64,
-) -> DatabaseFactoryDayData {
+    timestamp: i32,
+) -> DatabaseDexDayData {
     let factory = db.get_factory().await;
     let day_id = timestamp / 86400;
     let day_start_timestamp = day_id * 86400;
 
     let mut factory_day_data =
-        match db.get_factory_day_data(&day_id.to_string()).await {
+        match db.get_dex_day_data(&day_id.to_string()).await {
             Some(factory_day_data) => factory_day_data,
-            None => DatabaseFactoryDayData::new(
+            None => DatabaseDexDayData::new(
                 day_id.to_string(),
                 day_start_timestamp,
             ),
@@ -259,14 +272,14 @@ pub async fn update_factory_day_data(
     factory_day_data.total_liquidity_eth = factory.total_liquidity_eth;
     factory_day_data.tx_count = factory.tx_count;
 
-    db.update_factory_day_data(&factory_day_data).await;
+    db.update_dex_day_data(&factory_day_data).await;
 
     factory_day_data
 }
 
 pub async fn update_pair_day_data(
     log: &Log,
-    timestamp: i64,
+    timestamp: i32,
     db: &Database,
 ) -> DatabasePairDayData {
     let day_id = timestamp / 86400;
@@ -279,15 +292,19 @@ pub async fn update_pair_day_data(
         .await
         .unwrap();
 
+    let pair_address = pair.id.to_lowercase();
+    let token0_address = pair.token0.to_lowercase();
+    let token1_address = pair.token1.to_lowercase();
+
     let mut pair_day_data =
         match db.get_pair_day_data(&day_pair_id.to_string()).await {
             Some(pair_day_data) => pair_day_data,
             None => DatabasePairDayData::new(
                 day_pair_id,
                 day_start_timestamp,
-                pair.id,
-                pair.token0,
-                pair.token1,
+                pair_address,
+                token0_address,
+                token1_address,
             ),
         };
 
@@ -304,7 +321,7 @@ pub async fn update_pair_day_data(
 
 pub async fn update_pair_hour_data(
     log: &Log,
-    timestamp: i64,
+    timestamp: i32,
     db: &Database,
 ) -> DatabasePairHourData {
     let hour_index = timestamp / 3600;
@@ -320,13 +337,15 @@ pub async fn update_pair_hour_data(
         .await
         .unwrap();
 
+    let pair_address = pair.id.to_lowercase();
+
     let mut pair_hour_data =
         match db.get_pair_hour_data(&hour_pair_id.to_string()).await {
             Some(pair_hour_data) => pair_hour_data,
             None => DatabasePairHourData::new(
                 hour_pair_id,
                 hour_start_unix,
-                pair.id,
+                pair_address,
             ),
         };
 
@@ -343,13 +362,16 @@ pub async fn update_pair_hour_data(
 
 pub async fn update_token_day_data(
     token: &DatabaseToken,
-    timestamp: i64,
+    timestamp: i32,
     db: &Database,
 ) -> DatabaseTokenDayData {
     let bundle = db.get_bundle().await;
     let day_id = timestamp / 86400;
     let day_start_timestamp = day_id * 86400;
-    let token_day_id = format!("{}-{}", token.id, day_id);
+
+    let token_address = token.id.to_lowercase();
+
+    let token_day_id = format!("{}-{}", token_address, day_id);
 
     let mut token_day_data =
         match db.get_token_day_data(&token_day_id.to_string()).await {
@@ -357,48 +379,22 @@ pub async fn update_token_day_data(
             None => DatabaseTokenDayData::new(
                 token_day_id,
                 day_start_timestamp,
-                token.id.clone(),
-                token.derived_eth.mul(bundle.eth_price),
+                token_address.clone(),
+                token.derived_eth.clone() * bundle.eth_price.clone(),
             ),
         };
 
-    token_day_data.price_usd = token.derived_eth.mul(bundle.eth_price);
-    token_day_data.total_liquidity_token = token.total_liquidity;
+    token_day_data.price_usd =
+        token.derived_eth.clone() * bundle.eth_price.clone();
+    token_day_data.total_liquidity_token = token.total_liquidity.clone();
     token_day_data.total_liquidity_eth =
-        token.total_liquidity.mul(token.derived_eth);
+        token.total_liquidity.clone() * token.derived_eth.clone();
     token_day_data.total_liquidity_usd =
-        token_day_data.total_liquidity_eth.mul(bundle.eth_price);
+        token_day_data.total_liquidity_eth.clone()
+            * bundle.eth_price.clone();
     token_day_data.daily_txns += 1;
 
     db.update_token_day_data(&token_day_data).await;
 
     token_day_data
-}
-
-fn exponent_to_bigdecimal(decimals: &UD256) -> UD256 {
-    let mut bd = udec256!(1);
-
-    let mut i = udec256!(0);
-    while i < *decimals {
-        bd = bd.mul(udec256!(10));
-        i = i.add(udec256!(1));
-    }
-
-    bd
-}
-
-pub fn convert_token_to_decimal(
-    token_amount: &UD256,
-    exchange_decimals: &UD256,
-) -> UD256 {
-    let token_amount_decimal =
-        UD256::from_str(&token_amount.to_string(), Context::default())
-            .unwrap();
-
-    if exchange_decimals.is_zero() {
-        token_amount_decimal
-    } else {
-        let divisor = exponent_to_bigdecimal(exchange_decimals);
-        token_amount_decimal / divisor
-    }
 }

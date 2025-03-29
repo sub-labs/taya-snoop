@@ -10,4 +10,20 @@ pub struct DatabaseTransaction {
     pub id: String,
     pub block_number: i32,
     pub timestamp: i32,
+    pub mints: Vec<String>,
+    pub burns: Vec<String>,
+    pub swaps: Vec<String>,
+}
+
+impl DatabaseTransaction {
+    pub fn new(hash: String, block_number: i32, timestamp: i32) -> Self {
+        Self {
+            id: hash,
+            block_number,
+            timestamp,
+            mints: Vec::new(),
+            burns: Vec::new(),
+            swaps: Vec::new(),
+        }
+    }
 }
