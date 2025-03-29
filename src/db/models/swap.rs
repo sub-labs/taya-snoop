@@ -22,6 +22,7 @@ pub struct DatabaseSwap {
     pub amount_usd: BigDecimal,
 }
 
+#[allow(clippy::too_many_arguments)]
 impl DatabaseSwap {
     pub fn new(
         id: String,

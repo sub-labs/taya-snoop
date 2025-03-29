@@ -26,6 +26,7 @@ pub struct DatabaseBurn {
     pub fee_liquidity: BigDecimal,
 }
 
+#[allow(clippy::too_many_arguments)]
 impl DatabaseBurn {
     pub fn new(
         id: String,

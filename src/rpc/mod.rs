@@ -77,8 +77,8 @@ impl Rpc {
     pub async fn get_pairs_logs_batch(
         &self,
         pairs: &[String],
-        first_block: u64,
-        last_block: u64,
+        first_block: i32,
+        last_block: i32,
     ) -> Option<Vec<Log>> {
         let address_pairs: Vec<Address> = pairs
             .iter()
@@ -86,8 +86,8 @@ impl Rpc {
             .collect();
 
         let filter = Filter::new()
-            .from_block(BlockNumberOrTag::Number(first_block))
-            .to_block(BlockNumberOrTag::Number(last_block))
+            .from_block(BlockNumberOrTag::Number(first_block as u64))
+            .to_block(BlockNumberOrTag::Number(last_block as u64))
             .address(address_pairs)
             .events(vec![
                 Mint::SIGNATURE,
