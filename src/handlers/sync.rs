@@ -38,8 +38,8 @@ pub async fn handle_sync(
 
     factory.total_liquidity_eth -= pair.tracked_reserve_eth.clone();
 
-    token0.total_liquidity = token0.total_liquidity.min(pair.reserve0);
-    token1.total_liquidity = token1.total_liquidity.min(pair.reserve1);
+    token0.total_liquidity -= pair.reserve0;
+    token1.total_liquidity -= pair.reserve1;
 
     pair.reserve0 = convert_token_to_decimal(
         &parse_u112(event.reserve0),
@@ -51,13 +51,13 @@ pub async fn handle_sync(
         token1.decimals,
     );
 
-    if pair.reserve0 != zero_bd() {
+    if pair.reserve1 != zero_bd() {
         pair.token0_price = pair.reserve0.clone() / pair.reserve1.clone()
     } else {
         pair.token0_price = zero_bd()
     }
 
-    if pair.reserve1 != zero_bd() {
+    if pair.reserve0 != zero_bd() {
         pair.token1_price = pair.reserve1.clone() / pair.reserve0.clone()
     } else {
         pair.token1_price = zero_bd()
@@ -92,6 +92,7 @@ pub async fn handle_sync(
             config,
         )
         .await
+            / bundle.eth_price.clone()
     }
 
     pair.tracked_reserve_eth = tracked_liquidity_eth.clone();
@@ -107,8 +108,7 @@ pub async fn handle_sync(
         factory.total_liquidity_eth.clone() * bundle.eth_price;
 
     token0.total_liquidity += pair.reserve0.clone();
-
-    token1.total_liquidity *= pair.reserve1.clone();
+    token1.total_liquidity += pair.reserve1.clone();
 
     db.update_pair(&pair).await;
     db.update_factory(&factory).await;
