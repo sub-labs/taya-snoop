@@ -20,7 +20,7 @@ pub struct IndexerArgs {
 
     #[arg(
         long,
-        help = "MongoDB connection URL (e.g. 'mongodb://user:password@host:27017/dbname')."
+        help = "PostgresSQL connection URL (e.g. 'postgres://user:password@host:5432/dbname')."
     )]
     pub database: String,
 

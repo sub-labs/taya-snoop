@@ -40,8 +40,8 @@ docker compose up
 
 ## Program flags
 
-| Flag           |  Default  | Purpose                                                                      |
-| -------------- | :-------: | -----------------------------------------------------------------------------|
-| `--rpc`        |  `empty`  | URL of the RPC endpoint to fetch chain data and logs.                        |
-| `--database`   |  `empty`  | MongoDB connection URL (e.g. 'mongodb://user:password@host:27017/dbname').   |
-| `--batch-size` |   `50`    | Number of blocks to fetch in each batch of logs.                             |
+| Flag           |  Default  | Purpose                                                                          |
+| -------------- | :-------: | ---------------------------------------------------------------------------------|
+| `--rpc`        |  `empty`  | URL of the RPC endpoint to fetch chain data and logs.                            |
+| `--database`   |  `empty`  | PostgresSQL connection URL (e.g. 'postgres://user:password@host:5432/dbname').   |
+| `--batch-size` |   `50`    | Number of blocks to fetch in each batch of logs.                                 |

@@ -12,13 +12,8 @@ bigdecimal = "0.4"
 clap = { version = "4", features = ["derive"] }
 diesel = { version = "2", features = ["postgres", "numeric"] }
 diesel_migrations = { version = "2", features = ["postgres"] }
-fastnum = { version = "0.1", features = ["serde"] }
-field_count = "0.1"
 futures = "0.3"
 log = "0.4"
-mongodb = "3"
-serde = { version = "1.0", features = ["derive"] }
-serde_with = "3"
 tokio = { version = "1", features = ["full"] }
 
 [dependencies.simple_logger]
