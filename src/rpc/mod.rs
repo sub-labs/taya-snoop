@@ -112,23 +112,34 @@ impl Rpc {
         let token =
             ERC20::new(Address::from_str(&token).unwrap(), &self.client);
 
-        let name = match token.name().call().await {
+        let name = async { token.name().call().await };
+        let symbol = async { token.symbol().call().await };
+        let total_supply = async { token.totalSupply().call().await };
+        let decimals = async { token.decimals().call().await };
+
+        let (
+            name_result,
+            symbol_result,
+            total_supply_result,
+            decimals_result,
+        ) = tokio::join!(name, symbol, total_supply, decimals);
+
+        let name = match name_result {
             Ok(name) => name._0,
             Err(_) => "UNKNOWN".to_owned(),
         };
 
-        let symbol = match token.symbol().call().await {
+        let symbol = match symbol_result {
             Ok(symbol) => symbol._0,
             Err(_) => "UNKNOWN".to_owned(),
         };
 
-        let total_supply: BigDecimal =
-            match token.totalSupply().call().await {
-                Ok(total_supply) => parse_u256(total_supply._0),
-                Err(_) => zero_bd(),
-            };
+        let total_supply: BigDecimal = match total_supply_result {
+            Ok(total_supply) => parse_u256(total_supply._0),
+            Err(_) => zero_bd(),
+        };
 
-        let decimals: i32 = match token.decimals().call().await {
+        let decimals: i32 = match decimals_result {
             Ok(decimals) => decimals._0 as i32,
             Err(_) => 0,
         };

@@ -6,6 +6,7 @@ use crate::{
                 DatabaseDexDayData, DatabasePairDayData,
                 DatabasePairHourData, DatabaseTokenDayData,
             },
+            factory::DatabaseFactory,
             pair::DatabasePair,
             token::DatabaseToken,
         },
@@ -14,7 +15,6 @@ use crate::{
     rpc::Rpc,
     utils::format::{address_zero, one_bd, zero_bd},
 };
-use alloy::rpc::types::Log;
 use bigdecimal::BigDecimal;
 
 pub async fn get_eth_price_usd(
@@ -252,10 +252,10 @@ pub async fn get_tracked_liquidity_usd(
 }
 
 pub async fn update_dex_day_data(
+    factory: &DatabaseFactory,
     db: &Database,
     timestamp: i32,
 ) -> DatabaseDexDayData {
-    let factory = db.get_factory().await;
     let day_id = timestamp / 86400;
     let day_start_timestamp = day_id * 86400;
 
@@ -268,8 +268,10 @@ pub async fn update_dex_day_data(
             ),
         };
 
-    factory_day_data.total_liquidity_usd = factory.total_liquidity_usd;
-    factory_day_data.total_liquidity_eth = factory.total_liquidity_eth;
+    factory_day_data.total_liquidity_usd =
+        factory.total_liquidity_usd.clone();
+    factory_day_data.total_liquidity_eth =
+        factory.total_liquidity_eth.clone();
     factory_day_data.tx_count = factory.tx_count;
 
     db.update_dex_day_data(&factory_day_data).await;
@@ -278,21 +280,16 @@ pub async fn update_dex_day_data(
 }
 
 pub async fn update_pair_day_data(
-    log: &Log,
+    pair: &DatabasePair,
     timestamp: i32,
     db: &Database,
 ) -> DatabasePairDayData {
+    let pair_address = pair.id.to_lowercase();
+
     let day_id = timestamp / 86400;
     let day_start_timestamp = day_id * 86400;
-    let day_pair_id =
-        format!("{}-{}", log.address().to_string().to_lowercase(), day_id); // TODO: check if this is correct;
+    let day_pair_id = format!("{}-{}", pair_address, day_id);
 
-    let pair = db
-        .get_pair(&log.address().to_string().to_lowercase())
-        .await
-        .unwrap();
-
-    let pair_address = pair.id.to_lowercase();
     let token0_address = pair.token0.to_lowercase();
     let token1_address = pair.token1.to_lowercase();
 
@@ -308,10 +305,10 @@ pub async fn update_pair_day_data(
             ),
         };
 
-    pair_day_data.total_supply = pair.total_supply;
-    pair_day_data.reserve0 = pair.reserve0;
-    pair_day_data.reserve1 = pair.reserve1;
-    pair_day_data.reserve_usd = pair.reserve_usd;
+    pair_day_data.total_supply = pair.total_supply.clone();
+    pair_day_data.reserve0 = pair.reserve0.clone();
+    pair_day_data.reserve1 = pair.reserve1.clone();
+    pair_day_data.reserve_usd = pair.reserve_usd.clone();
     pair_day_data.daily_txns += 1;
 
     db.update_pair_day_data(&pair_day_data).await;
@@ -320,24 +317,16 @@ pub async fn update_pair_day_data(
 }
 
 pub async fn update_pair_hour_data(
-    log: &Log,
+    pair: &DatabasePair,
     timestamp: i32,
     db: &Database,
 ) -> DatabasePairHourData {
+    let pair_address = pair.id.to_lowercase();
+
     let hour_index = timestamp / 3600;
     let hour_start_unix = hour_index * 3600;
-    let hour_pair_id = format!(
-        "{}-{}",
-        log.address().to_string().to_lowercase(),
-        hour_index
-    ); // TODO: check if this is correct;
-
-    let pair = db
-        .get_pair(&log.address().to_string().to_lowercase())
-        .await
-        .unwrap();
-
-    let pair_address = pair.id.to_lowercase();
+    let hour_pair_id =
+        format!("{}-{}", pair_address.to_lowercase(), hour_index);
 
     let mut pair_hour_data =
         match db.get_pair_hour_data(&hour_pair_id.to_string()).await {
@@ -349,10 +338,10 @@ pub async fn update_pair_hour_data(
             ),
         };
 
-    pair_hour_data.total_supply = pair.total_supply;
-    pair_hour_data.reserve0 = pair.reserve0;
-    pair_hour_data.reserve1 = pair.reserve1;
-    pair_hour_data.reserve_usd = pair.reserve_usd;
+    pair_hour_data.total_supply = pair.total_supply.clone();
+    pair_hour_data.reserve0 = pair.reserve0.clone();
+    pair_hour_data.reserve1 = pair.reserve1.clone();
+    pair_hour_data.reserve_usd = pair.reserve_usd.clone();
     pair_hour_data.hourly_txns += 1;
 
     db.update_pair_hour_data(&pair_hour_data).await;

@@ -82,8 +82,7 @@ pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
         let pair = DatabasePair::new(event, block_timestamp, block_number);
 
         // Store the factory and the new pair
-        db.update_factory(&factory).await;
-        db.update_pair(&pair).await;
+        tokio::join!(db.update_factory(&factory), db.update_pair(&pair));
     }
 
     info!("Stored {} pairs and {} tokens", count_pairs, count_tokens);

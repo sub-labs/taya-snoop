@@ -87,12 +87,13 @@ pub async fn handle_transfer(
                 log.log_index.unwrap() as i32,
             );
 
-            db.update_mint(&mint).await;
+            transaction.mints.push(Some(mint.id.clone()));
 
-            transaction.mints.push(Some(mint.id));
-
-            db.update_transaction(&transaction).await;
-            db.update_factory(&factory).await;
+            tokio::join!(
+                db.update_mint(&mint),
+                db.update_transaction(&transaction),
+                db.update_factory(&factory)
+            );
         }
     }
 
@@ -115,11 +116,12 @@ pub async fn handle_transfer(
             true,
         );
 
-        db.update_burn(&burn).await;
-
         transaction.burns.push(Some(burn.id.clone()));
 
-        db.update_transaction(&transaction).await;
+        tokio::join!(
+            db.update_burn(&burn),
+            db.update_transaction(&transaction),
+        );
     }
 
     if to_address == address_zero() && from_address == pair_address {

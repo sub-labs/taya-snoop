@@ -76,11 +76,6 @@ pub async fn handle_burn(log: Log, timestamp: i32, db: &Database) {
     pair.tx_count += 1;
     factory.tx_count += 1;
 
-    db.update_token(&token0).await;
-    db.update_token(&token1).await;
-    db.update_pair(&pair).await;
-    db.update_factory(&factory).await;
-
     let mut burn = burn.unwrap();
     burn.sender = sender_address;
     burn.amount0 = token0_amount;
@@ -88,13 +83,16 @@ pub async fn handle_burn(log: Log, timestamp: i32, db: &Database) {
     burn.log_index = log.log_index.unwrap() as i32;
     burn.amount_usd = amount_total_usd;
 
-    db.update_factory(&factory).await;
-
-    db.update_burn(&burn).await;
-
-    update_pair_day_data(&log, timestamp, db).await;
-    update_pair_hour_data(&log, timestamp, db).await;
-    update_dex_day_data(db, timestamp).await;
-    update_token_day_data(&token0, timestamp, db).await;
-    update_token_day_data(&token1, timestamp, db).await;
+    tokio::join!(
+        db.update_token(&token0),
+        db.update_token(&token1),
+        db.update_pair(&pair),
+        db.update_factory(&factory),
+        db.update_burn(&burn),
+        update_pair_day_data(&pair, timestamp, db),
+        update_pair_hour_data(&pair, timestamp, db),
+        update_dex_day_data(&factory, db, timestamp),
+        update_token_day_data(&token0, timestamp, db),
+        update_token_day_data(&token1, timestamp, db),
+    );
 }

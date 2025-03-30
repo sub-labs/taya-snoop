@@ -116,8 +116,6 @@ pub async fn handle_swap(
     pair.untracked_volume_usd += derived_amount_usd.clone();
     pair.tx_count += 1;
 
-    db.update_pair(&pair).await;
-
     let mut factory = db.get_factory().await;
     factory.total_volume_usd += tracked_amount_usd.clone();
     factory.total_volume_eth =
@@ -126,12 +124,6 @@ pub async fn handle_swap(
     factory.untracked_volume_usd += derived_amount_usd.clone();
 
     factory.tx_count += 1;
-
-    db.update_pair(&pair).await;
-
-    db.update_token(&token0).await;
-    db.update_token(&token1).await;
-    db.update_factory(&factory).await;
 
     let transaction_hash = log.transaction_hash.unwrap().to_string();
     let block_number = log.block_number.unwrap() as i32;
@@ -173,47 +165,48 @@ pub async fn handle_swap(
         to_address,
     );
 
-    db.update_swap(&swap).await;
-
     transaction.swaps.push(Some(swap.id.clone()));
 
-    db.update_transaction(&transaction).await;
+    tokio::join!(
+        db.update_pair(&pair),
+        db.update_token(&token0),
+        db.update_token(&token1),
+        db.update_factory(&factory),
+        db.update_swap(&swap),
+        db.update_transaction(&transaction),
+    );
 
-    let mut pair_day_data =
-        update_pair_day_data(&log, block_timestamp, db).await;
-    let mut pair_hour_data =
-        update_pair_hour_data(&log, block_timestamp, db).await;
-    let mut dex_day_data = update_dex_day_data(db, block_timestamp).await;
-    let mut token0_day_data =
-        update_token_day_data(&token0, block_timestamp, db).await;
-    let mut token1_day_data =
-        update_token_day_data(&token1, block_timestamp, db).await;
+    let (
+        mut pair_day_data,
+        mut pair_hour_data,
+        mut dex_day_data,
+        mut token0_day_data,
+        mut token1_day_data,
+    ) = tokio::join!(
+        update_pair_day_data(&pair, block_timestamp, db),
+        update_pair_hour_data(&pair, block_timestamp, db),
+        update_dex_day_data(&factory, db, block_timestamp),
+        update_token_day_data(&token0, block_timestamp, db),
+        update_token_day_data(&token1, block_timestamp, db)
+    );
 
     dex_day_data.daily_volume_usd += tracked_amount_usd.clone();
     dex_day_data.daily_volume_eth += tracked_amount_eth;
     dex_day_data.daily_volume_untracked += derived_amount_usd;
 
-    db.update_dex_day_data(&dex_day_data).await;
-
     pair_day_data.daily_volume_token0 += amount0_total.clone();
     pair_day_data.daily_volume_token1 += amount1_total.clone();
     pair_day_data.daily_volume_usd += tracked_amount_usd.clone();
 
-    db.update_pair_day_data(&pair_day_data).await;
-
     pair_hour_data.hourly_volume_token0 += amount0_total.clone();
     pair_hour_data.hourly_volume_token1 += amount1_total.clone();
     pair_hour_data.hourly_volume_usd += tracked_amount_usd.clone();
-
-    db.update_pair_hour_data(&pair_hour_data).await;
 
     token0_day_data.daily_volume_token += amount0_total.clone();
     token0_day_data.daily_volume_eth +=
         amount0_total.clone() * token0.derived_eth.clone();
     token0_day_data.daily_volume_usd +=
         amount0_total * token0.derived_eth * bundle.eth_price.clone();
-
-    db.update_token_day_data(&token0_day_data).await;
 
     token1_day_data.daily_volume_token += amount1_total.clone();
 
@@ -223,5 +216,11 @@ pub async fn handle_swap(
     token1_day_data.daily_volume_usd +=
         amount1_total * token1.derived_eth * bundle.eth_price;
 
-    db.update_token_day_data(&token1_day_data).await;
+    tokio::join!(
+        db.update_dex_day_data(&dex_day_data),
+        db.update_pair_day_data(&pair_day_data),
+        db.update_pair_hour_data(&pair_hour_data),
+        db.update_token_day_data(&token0_day_data),
+        db.update_token_day_data(&token1_day_data),
+    );
 }

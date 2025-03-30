@@ -63,22 +63,15 @@ pub async fn handle_sync(
         pair.token1_price = zero_bd()
     }
 
-    db.update_pair(&pair).await;
-
     let mut bundle = db.get_bundle().await;
 
     bundle.eth_price = get_eth_price_usd(db, config).await;
-
-    db.update_bundle(&bundle).await;
 
     token0.derived_eth =
         find_eth_per_token(&token0, rpc, db, config).await;
 
     token1.derived_eth =
         find_eth_per_token(&token1, rpc, db, config).await;
-
-    db.update_token(&token0).await;
-    db.update_token(&token1).await;
 
     let mut tracked_liquidity_eth = zero_bd();
 
@@ -105,13 +98,16 @@ pub async fn handle_sync(
     factory.total_liquidity_eth += tracked_liquidity_eth;
 
     factory.total_liquidity_usd =
-        factory.total_liquidity_eth.clone() * bundle.eth_price;
+        factory.total_liquidity_eth.clone() * bundle.eth_price.clone();
 
     token0.total_liquidity += pair.reserve0.clone();
     token1.total_liquidity += pair.reserve1.clone();
 
-    db.update_pair(&pair).await;
-    db.update_factory(&factory).await;
-    db.update_token(&token0).await;
-    db.update_token(&token1).await;
+    tokio::join!(
+        db.update_bundle(&bundle),
+        db.update_pair(&pair),
+        db.update_factory(&factory),
+        db.update_token(&token0),
+        db.update_token(&token1),
+    );
 }
