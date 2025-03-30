@@ -130,7 +130,10 @@ impl Rpc {
 
         let decimals: i32 = match token.decimals().call().await {
             Ok(decimals) => decimals._0 as i32,
-            Err(_) => 0,
+            Err(err) => {
+                println!("{}", err);
+                0
+            }
         };
 
         (name, symbol, total_supply, decimals)
