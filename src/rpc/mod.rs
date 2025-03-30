@@ -16,16 +16,14 @@ use crate::{
 use alloy::{
     eips::BlockNumberOrTag,
     primitives::Address,
-    providers::{Provider, ProviderBuilder, RootProvider},
-    rpc::types::{BlockTransactionsKind, Filter, Log},
+    providers::{DynProvider, Provider, ProviderBuilder},
+    rpc::types::{Filter, Log},
     sol_types::SolEvent,
-    transports::http::{Client, Http},
 };
 
-#[derive(Debug, Clone)]
 pub struct Rpc {
     pub chain: Chain,
-    pub client: RootProvider<Http<Client>>,
+    pub client: DynProvider,
 }
 
 impl Rpc {
@@ -33,7 +31,11 @@ impl Rpc {
         info!("Starting rpc service");
 
         let client = ProviderBuilder::new()
-            .on_http(config.rpc.clone().parse().unwrap());
+            .connect(&config.rpc.clone())
+            .await
+            .unwrap();
+
+        let dyn_client = DynProvider::new(client.clone());
 
         let client_id = client.get_chain_id().await;
 
@@ -46,7 +48,7 @@ impl Rpc {
             Err(_) => panic!("unable to request eth_chainId"),
         }
 
-        Self { chain: config.chain.clone(), client }
+        Self { chain: config.chain.clone(), client: dyn_client }
     }
 
     pub async fn get_last_block(&self) -> Option<i32> {
@@ -137,10 +139,9 @@ impl Rpc {
     pub async fn get_block_timestamp(&self, block_number: i32) -> i32 {
         let block = self
             .client
-            .get_block_by_number(
-                BlockNumberOrTag::Number(block_number as u64),
-                BlockTransactionsKind::Hashes,
-            )
+            .get_block_by_number(BlockNumberOrTag::Number(
+                block_number as u64,
+            ))
             .await
             .unwrap()
             .unwrap();
