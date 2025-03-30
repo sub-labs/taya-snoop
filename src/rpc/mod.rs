@@ -147,19 +147,6 @@ impl Rpc {
         (name, symbol, total_supply, decimals)
     }
 
-    pub async fn get_block_timestamp(&self, block_number: i32) -> i32 {
-        let block = self
-            .client
-            .get_block_by_number(BlockNumberOrTag::Number(
-                block_number as u64,
-            ))
-            .await
-            .unwrap()
-            .unwrap();
-
-        block.header.timestamp as i32
-    }
-
     pub async fn get_pair_for_tokens(
         &self,
         token0: String,

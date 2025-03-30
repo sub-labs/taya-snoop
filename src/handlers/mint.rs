@@ -16,40 +16,42 @@ sol! {
 
 pub async fn handle_mint(log: Log, timestamp: i32, db: &Database) {
     let event = Mint::decode_log(&log.inner, true).unwrap();
-
     let transaction_hash = log.transaction_hash.unwrap().to_string();
 
-    let transaction = db.get_transaction(&transaction_hash).await;
-    if transaction.is_none() {
-        return;
-    }
-
-    let transaction = transaction.unwrap();
+    let transaction = match db.get_transaction(&transaction_hash).await {
+        Some(tx) => tx,
+        None => return,
+    };
 
     let mints = transaction.mints.clone();
-
-    let mint = mints.last().unwrap().as_ref().unwrap();
-
-    let mint = db.get_mint(mint).await;
-    if mint.is_none() {
-        return;
-    }
+    let mint_id = mints.last().unwrap().as_ref().unwrap();
+    let mut mint = match db.get_mint(mint_id).await {
+        Some(mint) => mint,
+        None => return,
+    };
 
     let pair_address = event.address.to_string().to_lowercase();
 
-    let mut pair = db.get_pair(&pair_address).await.unwrap();
+    let (pair_result, mut factory, bundle) = tokio::join!(
+        db.get_pair(&pair_address),
+        db.get_factory(),
+        db.get_bundle()
+    );
 
-    let mut factory = db.get_factory().await;
+    let mut pair = pair_result.unwrap();
 
-    let token0 = db.get_token(&pair.token0).await;
-    let token1 = db.get_token(&pair.token1).await;
-
-    if token0.is_none() || token1.is_none() {
-        return;
-    }
-
-    let mut token0 = token0.unwrap();
-    let mut token1 = token1.unwrap();
+    let (token0_request, token1_request) = tokio::join!(
+        db.get_token(&pair.token0),
+        db.get_token(&pair.token1)
+    );
+    let mut token0 = match token0_request {
+        Some(token) => token,
+        None => return,
+    };
+    let mut token1 = match token1_request {
+        Some(token) => token,
+        None => return,
+    };
 
     let token0_amount = convert_token_to_decimal(
         &parse_u256(event.amount0),
@@ -64,8 +66,7 @@ pub async fn handle_mint(log: Log, timestamp: i32, db: &Database) {
     token0.tx_count += 1;
     token1.tx_count += 1;
 
-    let bundle = db.get_bundle().await;
-
+    println!("here");
     let amount_total_usd = (token1.derived_eth.clone()
         * token1_amount.clone())
         + (token0.derived_eth.clone() * token0_amount.clone())
@@ -74,7 +75,6 @@ pub async fn handle_mint(log: Log, timestamp: i32, db: &Database) {
     pair.tx_count += 1;
     factory.tx_count += 1;
 
-    let mut mint = mint.unwrap();
     mint.sender = event.sender.to_string().to_lowercase();
     mint.amount0 = token0_amount;
     mint.amount1 = token1_amount;

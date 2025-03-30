@@ -18,29 +18,22 @@ pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
 
     let count_pairs = pairs.len();
 
-    // Start iterating pair events
     for log in pairs {
-        // Parse the log to event
         let event = PairCreated::decode_log(&log.inner, true).unwrap();
 
         let token0_address = event.token0.to_string().to_lowercase();
         let token1_address = event.token1.to_string().to_lowercase();
         let pair_address = event.pair.to_string().to_lowercase();
 
-        // Load the factory
-        let mut factory = db.get_factory().await;
+        let (mut factory, token0, token1) = tokio::join!(
+            db.get_factory(),
+            db.get_token(&token0_address),
+            db.get_token(&token1_address)
+        );
 
-        // Add the pair to the count
         factory.pair_count += 1;
         factory.pairs.push(Some(pair_address));
 
-        // Load the token0
-        let token0 = db.get_token(&token0_address.clone()).await;
-
-        // Load the token1
-        let token1 = db.get_token(&token1_address.clone()).await;
-
-        // Create if it doesn't exists
         if token0.is_none() {
             let (name, symbol, total_supply, decimals) =
                 rpc.get_token_information(token0_address.clone()).await;
@@ -57,7 +50,6 @@ pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
             count_tokens += 1;
         }
 
-        // Create if it doesn't exists
         if token1.is_none() {
             let (name, symbol, total_supply, decimals) =
                 rpc.get_token_information(token1_address.clone()).await;
@@ -76,12 +68,10 @@ pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
         }
 
         let block_number = log.block_number.unwrap() as i32;
-        let block_timestamp = rpc.get_block_timestamp(block_number).await;
+        let block_timestamp = log.block_timestamp.unwrap() as i32;
 
-        // Create the pair data
         let pair = DatabasePair::new(event, block_timestamp, block_number);
 
-        // Store the factory and the new pair
         tokio::join!(db.update_factory(&factory), db.update_pair(&pair));
     }
 

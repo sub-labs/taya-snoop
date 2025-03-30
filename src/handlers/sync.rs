@@ -25,16 +25,21 @@ pub async fn handle_sync(
 
     let pair_address = event.address.to_string().to_lowercase();
 
-    // Get the pair
-    let mut pair = db.get_pair(&pair_address).await.unwrap();
+    let (pair_result, mut factory, mut bundle) = tokio::join!(
+        db.get_pair(&pair_address),
+        db.get_factory(),
+        db.get_bundle()
+    );
 
-    // Get the token0
-    let mut token0 = db.get_token(&pair.token0).await.unwrap();
-    // Get the token1
-    let mut token1 = db.get_token(&pair.token1).await.unwrap();
+    let mut pair = pair_result.unwrap();
 
-    // Load the factory
-    let mut factory = db.get_factory().await;
+    let (token0_result, token1_result) = tokio::join!(
+        db.get_token(&pair.token0),
+        db.get_token(&pair.token1)
+    );
+
+    let mut token0 = token0_result.unwrap();
+    let mut token1 = token1_result.unwrap();
 
     factory.total_liquidity_eth -= pair.tracked_reserve_eth.clone();
 
@@ -63,15 +68,18 @@ pub async fn handle_sync(
         pair.token1_price = zero_bd()
     }
 
-    let mut bundle = db.get_bundle().await;
+    println!("here");
 
     bundle.eth_price = get_eth_price_usd(db, config).await;
+    println!("here1");
 
     token0.derived_eth =
         find_eth_per_token(&token0, rpc, db, config).await;
+    println!("here2");
 
     token1.derived_eth =
         find_eth_per_token(&token1, rpc, db, config).await;
+    println!("here3");
 
     let mut tracked_liquidity_eth = zero_bd();
 
@@ -102,6 +110,8 @@ pub async fn handle_sync(
 
     token0.total_liquidity += pair.reserve0.clone();
     token1.total_liquidity += pair.reserve1.clone();
+
+    println!("here5");
 
     tokio::join!(
         db.update_bundle(&bundle),
