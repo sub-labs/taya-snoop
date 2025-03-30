@@ -66,7 +66,6 @@ pub async fn handle_mint(log: Log, timestamp: i32, db: &Database) {
     token0.tx_count += 1;
     token1.tx_count += 1;
 
-    println!("here");
     let amount_total_usd = (token1.derived_eth.clone()
         * token1_amount.clone())
         + (token0.derived_eth.clone() * token0_amount.clone())

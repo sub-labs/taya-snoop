@@ -113,7 +113,6 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
             });
 
             for log in event_logs {
-                println!("{:?}", log.transaction_hash);
                 match log.topic0() {
                     Some(topic_raw) => {
                         let block_timestamp =

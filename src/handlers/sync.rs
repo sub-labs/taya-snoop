@@ -68,18 +68,17 @@ pub async fn handle_sync(
         pair.token1_price = zero_bd()
     }
 
-    println!("here");
+    // IMPORTANT:
+    // Update the pair before checking prices to prevent zero division if the pair updated is used to calculate prices
+    db.update_pair(&pair).await;
 
     bundle.eth_price = get_eth_price_usd(db, config).await;
-    println!("here1");
 
     token0.derived_eth =
         find_eth_per_token(&token0, rpc, db, config).await;
-    println!("here2");
 
     token1.derived_eth =
         find_eth_per_token(&token1, rpc, db, config).await;
-    println!("here3");
 
     let mut tracked_liquidity_eth = zero_bd();
 
@@ -110,8 +109,6 @@ pub async fn handle_sync(
 
     token0.total_liquidity += pair.reserve0.clone();
     token1.total_liquidity += pair.reserve1.clone();
-
-    println!("here5");
 
     tokio::join!(
         db.update_bundle(&bundle),

@@ -28,9 +28,8 @@ pub async fn handle_transfer(
     db: &Database,
 ) {
     let event = Transfer::decode_log(&log.inner, true).unwrap();
-
     let from_address = event.from.to_string().to_lowercase();
-    let to_address = event.from.to_string().to_lowercase();
+    let to_address = event.to.to_string().to_lowercase();
 
     if from_address == address_zero()
         && parse_u256(event.value) == BigDecimal::from(1000)
@@ -38,32 +37,30 @@ pub async fn handle_transfer(
         return;
     }
 
-    let factory = db.get_factory().await;
-
     let transaction_hash = log.transaction_hash.unwrap().to_string();
-
-    let pair_address = event.address.to_string().to_lowercase().clone();
-
-    let mut pair = db.get_pair(&pair_address).await.unwrap();
-
-    let value = convert_token_to_decimal(&parse_u256(event.value), 18);
-
+    let pair_address = event.address.to_string().to_lowercase();
     let block_number = log.block_number.unwrap() as i32;
+    let value = convert_token_to_decimal(&parse_u256(event.value), 18);
+    let log_index = log.log_index.unwrap() as i32;
 
-    let mut transaction = match db.get_transaction(&transaction_hash).await
-    {
-        Some(transaction) => transaction,
-        None => DatabaseTransaction::new(
+    let (factory, pair_result, transaction_result) = tokio::join!(
+        db.get_factory(),
+        db.get_pair(&pair_address),
+        db.get_transaction(&transaction_hash)
+    );
+
+    let mut pair = pair_result.unwrap();
+
+    let mut transaction = transaction_result.unwrap_or_else(|| {
+        DatabaseTransaction::new(
             transaction_hash.clone(),
             block_number,
             block_timestamp,
-        ),
-    };
+        )
+    });
 
     if from_address == address_zero() {
         pair.total_supply += value.clone();
-
-        db.update_pair(&pair).await;
 
         if transaction.mints.is_empty()
             || is_complete_mint(
@@ -74,21 +71,18 @@ pub async fn handle_transfer(
         {
             let mint_id = format!(
                 "{}-{}",
-                transaction_hash.clone(),
+                transaction_hash,
                 transaction.mints.len()
             );
-
             let mint = DatabaseMint::new(
                 mint_id,
                 transaction_hash.clone(),
                 block_timestamp,
                 pair_address.clone(),
                 to_address.clone(),
-                log.log_index.unwrap() as i32,
+                log_index,
             );
-
             transaction.mints.push(Some(mint.id.clone()));
-
             tokio::join!(
                 db.update_mint(&mint),
                 db.update_transaction(&transaction),
@@ -98,17 +92,14 @@ pub async fn handle_transfer(
     }
 
     if to_address == pair_address {
-        let burn_id = format!(
-            "{}-{}",
-            transaction_hash.clone(),
-            transaction.burns.len()
-        );
+        let burn_id =
+            format!("{}-{}", transaction_hash, transaction.burns.len());
 
         let burn = DatabaseBurn::new(
             burn_id,
             transaction_hash.clone(),
             block_timestamp,
-            log.log_index.unwrap() as i32,
+            log_index,
             pair_address.clone(),
             to_address.clone(),
             value.clone(),
@@ -117,43 +108,37 @@ pub async fn handle_transfer(
         );
 
         transaction.burns.push(Some(burn.id.clone()));
-
         tokio::join!(
             db.update_burn(&burn),
-            db.update_transaction(&transaction),
+            db.update_transaction(&transaction)
         );
     }
 
     if to_address == address_zero() && from_address == pair_address {
         pair.total_supply -= value.clone();
 
-        db.update_pair(&pair).await;
-
-        let mut burn: DatabaseBurn;
-
-        if !transaction.burns.is_empty() {
-            let burn_id =
+        let burn = if !transaction.burns.is_empty() {
+            let last_burn_id =
                 transaction.burns.last().unwrap().as_ref().unwrap();
 
-            let current_burn = db.get_burn(burn_id).await.unwrap();
+            let current_burn = db.get_burn(last_burn_id).await.unwrap();
 
             if current_burn.needs_complete {
-                burn = current_burn
+                current_burn
             } else {
                 let burn_id = format!(
                     "{}-{}",
-                    transaction_hash.clone(),
+                    transaction_hash,
                     transaction.burns.len()
                 );
-
-                burn = DatabaseBurn::new(
+                DatabaseBurn::new(
                     burn_id,
                     transaction_hash.clone(),
                     block_timestamp,
-                    log.log_index.unwrap() as i32,
-                    pair_address,
-                    to_address,
-                    value,
+                    log_index,
+                    pair_address.clone(),
+                    to_address.clone(),
+                    value.clone(),
                     address_zero(),
                     false,
                 )
@@ -161,37 +146,37 @@ pub async fn handle_transfer(
         } else {
             let burn_id = format!(
                 "{}-{}",
-                transaction_hash.clone(),
+                transaction_hash,
                 transaction.burns.len()
             );
-
-            burn = DatabaseBurn::new(
+            DatabaseBurn::new(
                 burn_id,
                 transaction_hash.clone(),
                 block_timestamp,
-                log.log_index.unwrap() as i32,
-                pair_address,
+                log_index,
+                pair_address.clone(),
                 address_zero(),
-                value,
+                value.clone(),
                 address_zero(),
                 false,
             )
-        }
+        };
 
-        let mint = transaction.mints.last().unwrap().clone().unwrap();
+        let mut burn = burn;
 
-        if !transaction.mints.is_empty()
-            && !is_complete_mint(mint, db).await
-        {
-            let mint = transaction.mints.last().unwrap().as_ref().unwrap();
+        if !transaction.mints.is_empty() {
+            let last_mint_id =
+                transaction.mints.last().unwrap().clone().unwrap();
 
-            let mint = db.get_mint(mint).await.unwrap();
-
-            burn.fee_to = mint.to;
-            burn.fee_liquidity = mint.liquidity;
-
-            transaction.mints.pop().unwrap();
-            db.update_transaction(&transaction).await;
+            if !is_complete_mint(last_mint_id.clone(), db).await {
+                let mint_id =
+                    transaction.mints.last().unwrap().as_ref().unwrap();
+                let mint = db.get_mint(mint_id).await.unwrap();
+                burn.fee_to = mint.to;
+                burn.fee_liquidity = mint.liquidity;
+                transaction.mints.pop();
+                db.update_transaction(&transaction).await;
+            }
         }
 
         db.update_burn(&burn).await;
@@ -208,5 +193,8 @@ pub async fn handle_transfer(
         db.update_transaction(&transaction).await;
     }
 
-    db.update_transaction(&transaction).await;
+    tokio::join!(
+        db.update_pair(&pair),
+        db.update_transaction(&transaction)
+    );
 }
