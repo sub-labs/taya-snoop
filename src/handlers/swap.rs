@@ -33,47 +33,60 @@ pub async fn handle_swap(
     config: &Config,
 ) {
     let event = Swap::decode_log(&log.inner, true).unwrap();
-
     let pair_address = event.address.to_string().to_lowercase();
     let sender_address = event.sender.to_string().to_lowercase();
     let to_address = event.to.to_string().to_lowercase();
+    let transaction_hash = log.transaction_hash.unwrap().to_string();
+    let block_number = log.block_number.unwrap() as i32;
 
-    let mut pair = db.get_pair(&pair_address).await.unwrap();
+    let (pair_result, mut factory, bundle, transction_result) = tokio::join!(
+        db.get_pair(&pair_address),
+        db.get_factory(),
+        db.get_bundle(),
+        db.get_transaction(&transaction_hash)
+    );
 
-    let token0 = db.get_token(&pair.token0).await;
-    let token1 = db.get_token(&pair.token1).await;
+    let mut pair = pair_result.unwrap();
 
-    if token0.is_none() || token1.is_none() {
+    let mut transaction = match transction_result {
+        Some(tx) => tx,
+        None => DatabaseTransaction::new(
+            transaction_hash.clone(),
+            block_number,
+            block_timestamp,
+        ),
+    };
+
+    let (token0_result, token1_result) = tokio::join!(
+        db.get_token(&pair.token0),
+        db.get_token(&pair.token1)
+    );
+
+    if token0_result.is_none() || token1_result.is_none() {
         return;
     }
 
-    let mut token0 = token0.unwrap();
-    let mut token1 = token1.unwrap();
+    let mut token0 = token0_result.unwrap();
+    let mut token1 = token1_result.unwrap();
 
     let amount0_in = convert_token_to_decimal(
         &parse_u256(event.amount0In),
         token0.decimals,
     );
-
     let amount1_in = convert_token_to_decimal(
         &parse_u256(event.amount1In),
         token1.decimals,
     );
-
     let amount0_out = convert_token_to_decimal(
         &parse_u256(event.amount0Out),
         token0.decimals,
     );
-
     let amount1_out = convert_token_to_decimal(
         &parse_u256(event.amount1Out),
         token1.decimals,
     );
-
     let amount0_total = amount0_out.clone() + amount0_in.clone();
     let amount1_total = amount1_out.clone() + amount1_in.clone();
-
-    let bundle = db.get_bundle().await;
 
     let derived_amount_eth: BigDecimal = ((token1.derived_eth.clone()
         * (amount1_total.clone()))
@@ -116,7 +129,6 @@ pub async fn handle_swap(
     pair.untracked_volume_usd += derived_amount_usd.clone();
     pair.tx_count += 1;
 
-    let mut factory = db.get_factory().await;
     factory.total_volume_usd += tracked_amount_usd.clone();
     factory.total_volume_eth =
         factory.total_volume_eth.clone() + tracked_amount_eth.clone();
@@ -124,19 +136,6 @@ pub async fn handle_swap(
     factory.untracked_volume_usd += derived_amount_usd.clone();
 
     factory.tx_count += 1;
-
-    let transaction_hash = log.transaction_hash.unwrap().to_string();
-    let block_number = log.block_number.unwrap() as i32;
-
-    let mut transaction = match db.get_transaction(&transaction_hash).await
-    {
-        Some(transaction) => transaction,
-        None => DatabaseTransaction::new(
-            log.transaction_hash.unwrap().to_string(),
-            block_number,
-            block_timestamp,
-        ),
-    };
 
     let swap_id = format!(
         "{}-{}",
