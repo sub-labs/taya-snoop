@@ -2,8 +2,10 @@ use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
 
 use crate::{
     configs::Config,
-    db::Database,
-    rpc::Rpc,
+    db::{
+        models::{bundle::DatabaseBundle, factory::DatabaseFactory},
+        Database,
+    },
     utils::format::{convert_token_to_decimal, parse_u112, zero_bd},
 };
 
@@ -18,20 +20,15 @@ sol! {
 pub async fn handle_sync(
     log: Log,
     db: &Database,
-    rpc: &Rpc,
     config: &Config,
+    factory: &mut DatabaseFactory,
+    bundle: &mut DatabaseBundle,
 ) {
     let event = Sync::decode_log(&log.inner, true).unwrap();
 
     let pair_address = event.address.to_string().to_lowercase();
 
-    let (pair_result, mut factory, mut bundle) = tokio::join!(
-        db.get_pair(&pair_address),
-        db.get_factory(),
-        db.get_bundle()
-    );
-
-    let mut pair = pair_result.unwrap();
+    let mut pair = db.get_pair(&pair_address).await.unwrap();
 
     let (token0_result, token1_result) = tokio::join!(
         db.get_token(&pair.token0),
@@ -74,11 +71,9 @@ pub async fn handle_sync(
 
     bundle.eth_price = get_eth_price_usd(db, config).await;
 
-    token0.derived_eth =
-        find_eth_per_token(&token0, rpc, db, config).await;
+    token0.derived_eth = find_eth_per_token(&token0, db, config).await;
 
-    token1.derived_eth =
-        find_eth_per_token(&token1, rpc, db, config).await;
+    token1.derived_eth = find_eth_per_token(&token1, db, config).await;
 
     let mut tracked_liquidity_eth = zero_bd();
 
@@ -111,9 +106,7 @@ pub async fn handle_sync(
     token1.total_liquidity += pair.reserve1.clone();
 
     tokio::join!(
-        db.update_bundle(&bundle),
         db.update_pair(&pair),
-        db.update_factory(&factory),
         db.update_token(&token0),
         db.update_token(&token1),
     );

@@ -12,8 +12,7 @@ use crate::{
         },
         Database,
     },
-    rpc::Rpc,
-    utils::format::{address_zero, one_bd, zero_bd},
+    utils::format::{one_bd, zero_bd},
 };
 use bigdecimal::BigDecimal;
 
@@ -51,7 +50,6 @@ pub async fn get_eth_price_usd(
 
 pub async fn find_eth_per_token(
     token: &DatabaseToken,
-    rpc: &Rpc,
     db: &Database,
     config: &Config,
 ) -> BigDecimal {
@@ -65,58 +63,57 @@ pub async fn find_eth_per_token(
     for whitelist_token in config.chain.whitelist_tokens {
         let whitelist_token_address = whitelist_token.to_lowercase();
 
-        let pair_address = rpc
-            .get_pair_for_tokens(
-                token_address.clone(),
-                whitelist_token_address,
-                config,
-            )
-            .await
-            .to_lowercase();
+        let pair = db
+            .get_pair_for_tokens(&token_address, &whitelist_token_address)
+            .await;
 
-        if pair_address != address_zero() {
-            let pair = db.get_pair(&pair_address).await;
+        if pair.is_none() {
+            continue;
+        }
 
-            if pair.is_none() {
+        let pair_address: String = pair.unwrap().id.to_lowercase();
+
+        let pair = db.get_pair(&pair_address).await;
+
+        if pair.is_none() {
+            continue;
+        }
+
+        let pair = pair.unwrap();
+
+        let pair_token0_address = pair.token0.to_lowercase();
+        let pair_token1_address = pair.token0.to_lowercase();
+
+        if pair_token0_address == token_address
+            && pair.reserve_eth
+                > BigDecimal::from(
+                    config.chain.minimum_liquidity_threshold_eth,
+                )
+        {
+            let token0 = db.get_token(&pair_token0_address).await;
+            if token0.is_none() {
                 continue;
             }
 
-            let pair = pair.unwrap();
+            let token0 = token0.unwrap();
 
-            let pair_token0_address = pair.token0.to_lowercase();
-            let pair_token1_address = pair.token0.to_lowercase();
+            return pair.token0_price * token0.derived_eth;
+        }
 
-            if pair_token0_address == token_address
-                && pair.reserve_eth
-                    > BigDecimal::from(
-                        config.chain.minimum_liquidity_threshold_eth,
-                    )
-            {
-                let token0 = db.get_token(&pair_token0_address).await;
-                if token0.is_none() {
-                    continue;
-                }
-
-                let token0 = token0.unwrap();
-
-                return pair.token0_price * token0.derived_eth;
+        if pair_token1_address == token_address
+            && pair.reserve_eth
+                > BigDecimal::from(
+                    config.chain.minimum_liquidity_threshold_eth,
+                )
+        {
+            let token1 = db.get_token(&pair_token1_address).await;
+            if token1.is_none() {
+                continue;
             }
 
-            if pair_token1_address == token_address
-                && pair.reserve_eth
-                    > BigDecimal::from(
-                        config.chain.minimum_liquidity_threshold_eth,
-                    )
-            {
-                let token1 = db.get_token(&pair_token1_address).await;
-                if token1.is_none() {
-                    continue;
-                }
+            let token1 = token1.unwrap();
 
-                let token1 = token1.unwrap();
-
-                return pair.token1_price * token1.derived_eth;
-            }
+            return pair.token1_price * token1.derived_eth;
         }
     }
 

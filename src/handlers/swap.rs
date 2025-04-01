@@ -4,7 +4,10 @@ use bigdecimal::BigDecimal;
 use crate::{
     configs::Config,
     db::{
-        models::{swap::DatabaseSwap, transaction::DatabaseTransaction},
+        models::{
+            bundle::DatabaseBundle, factory::DatabaseFactory,
+            swap::DatabaseSwap, transaction::DatabaseTransaction,
+        },
         Database,
     },
     utils::format::{convert_token_to_decimal, parse_u256, zero_bd},
@@ -31,6 +34,8 @@ pub async fn handle_swap(
     block_timestamp: i32,
     db: &Database,
     config: &Config,
+    factory: &mut DatabaseFactory,
+    bundle: &DatabaseBundle,
 ) {
     let event = Swap::decode_log(&log.inner, true).unwrap();
     let pair_address = event.address.to_string().to_lowercase();
@@ -39,10 +44,8 @@ pub async fn handle_swap(
     let transaction_hash = log.transaction_hash.unwrap().to_string();
     let block_number = log.block_number.unwrap() as i32;
 
-    let (pair_result, mut factory, bundle, transction_result) = tokio::join!(
+    let (pair_result, transction_result) = tokio::join!(
         db.get_pair(&pair_address),
-        db.get_factory(),
-        db.get_bundle(),
         db.get_transaction(&transaction_hash)
     );
 
@@ -170,7 +173,6 @@ pub async fn handle_swap(
         db.update_pair(&pair),
         db.update_token(&token0),
         db.update_token(&token1),
-        db.update_factory(&factory),
         db.update_swap(&swap),
         db.update_transaction(&transaction),
     );
@@ -184,7 +186,7 @@ pub async fn handle_swap(
     ) = tokio::join!(
         update_pair_day_data(&pair, block_timestamp, db),
         update_pair_hour_data(&pair, block_timestamp, db),
-        update_dex_day_data(&factory, db, block_timestamp),
+        update_dex_day_data(factory, db, block_timestamp),
         update_token_day_data(&token0, block_timestamp, db),
         update_token_day_data(&token1, block_timestamp, db)
     );
@@ -213,7 +215,7 @@ pub async fn handle_swap(
         amount1_total.clone() * token1.derived_eth.clone();
 
     token1_day_data.daily_volume_usd +=
-        amount1_total * token1.derived_eth * bundle.eth_price;
+        amount1_total * token1.derived_eth * bundle.eth_price.clone();
 
     tokio::join!(
         db.update_dex_day_data(&dex_day_data),

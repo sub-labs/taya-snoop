@@ -4,8 +4,8 @@ pub mod schema;
 use crate::chains::Chain;
 
 use diesel::{
-    Connection, ExpressionMethods, OptionalExtension, PgConnection,
-    QueryDsl, QueryResult, RunQueryDsl,
+    BoolExpressionMethods, Connection, ExpressionMethods,
+    OptionalExtension, PgConnection, QueryDsl, QueryResult, RunQueryDsl,
 };
 use diesel_migrations::{
     embed_migrations, EmbeddedMigrations, MigrationHarness,
@@ -178,6 +178,27 @@ impl Database {
 
         pairs::dsl::pairs
             .find(id)
+            .first::<DatabasePair>(&mut connection)
+            .optional()
+            .unwrap()
+    }
+
+    pub async fn get_pair_for_tokens(
+        &self,
+        token_a: &str,
+        token_b: &str,
+    ) -> Option<DatabasePair> {
+        let mut connection = self.get_connection();
+
+        pairs::dsl::pairs
+            .filter(
+                (pairs::dsl::token0
+                    .eq(token_a)
+                    .and(pairs::dsl::token1.eq(token_b)))
+                .or(pairs::dsl::token0
+                    .eq(token_b)
+                    .and(pairs::dsl::token1.eq(token_a))),
+            )
             .first::<DatabasePair>(&mut connection)
             .optional()
             .unwrap()

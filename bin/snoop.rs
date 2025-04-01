@@ -81,13 +81,15 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
             None => return,
         };
 
-        handle_pairs(pair_logs, db, rpc).await;
+        let (mut factory, mut bundle) =
+            tokio::join!(db.get_factory(), db.get_bundle());
 
-        let factory = db.get_factory().await;
+        handle_pairs(&mut factory, pair_logs, db, rpc).await;
 
         if !factory.pairs.is_empty() {
             let pairs: Vec<String> = factory
                 .pairs
+                .clone()
                 .into_iter()
                 .map(|pair| pair.unwrap())
                 .collect();
@@ -121,20 +123,48 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
                         let topic = topic_raw.to_string();
 
                         if topic == Mint::SIGNATURE_HASH.to_string() {
-                            handle_mint(log, block_timestamp, db).await;
+                            handle_mint(
+                                log,
+                                block_timestamp,
+                                db,
+                                &mut factory,
+                                &bundle,
+                            )
+                            .await;
                             count_mints += 1;
                         } else if topic == Burn::SIGNATURE_HASH.to_string()
                         {
-                            handle_burn(log, block_timestamp, db).await;
+                            handle_burn(
+                                log,
+                                block_timestamp,
+                                db,
+                                &mut factory,
+                                &bundle,
+                            )
+                            .await;
                             count_burns += 1;
                         } else if topic == Swap::SIGNATURE_HASH.to_string()
                         {
-                            handle_swap(log, block_timestamp, db, config)
-                                .await;
+                            handle_swap(
+                                log,
+                                block_timestamp,
+                                db,
+                                config,
+                                &mut factory,
+                                &bundle,
+                            )
+                            .await;
                             count_swaps += 1;
                         } else if topic == Sync::SIGNATURE_HASH.to_string()
                         {
-                            handle_sync(log, db, rpc, config).await;
+                            handle_sync(
+                                log,
+                                db,
+                                config,
+                                &mut factory,
+                                &mut bundle,
+                            )
+                            .await;
                             count_syncs += 1;
                         } else if topic
                             == Transfer::SIGNATURE_HASH.to_string()
@@ -147,6 +177,11 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
                     None => continue,
                 }
             }
+
+            tokio::join!(
+                db.update_bundle(&bundle),
+                db.update_factory(&factory)
+            );
 
             info!("Procesed {} mints {} burns {} swaps {} sync and {} transfer events", count_mints, count_burns, count_swaps, count_syncs, count_transfers);
         }

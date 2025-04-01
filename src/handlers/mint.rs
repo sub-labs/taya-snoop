@@ -1,7 +1,10 @@
 use alloy::{rpc::types::Log, sol, sol_types::SolEvent};
 
 use crate::{
-    db::Database,
+    db::{
+        models::{bundle::DatabaseBundle, factory::DatabaseFactory},
+        Database,
+    },
     utils::format::{convert_token_to_decimal, parse_u256},
 };
 
@@ -14,7 +17,13 @@ sol! {
     event Mint(address indexed sender, uint amount0, uint amount1);
 }
 
-pub async fn handle_mint(log: Log, timestamp: i32, db: &Database) {
+pub async fn handle_mint(
+    log: Log,
+    timestamp: i32,
+    db: &Database,
+    factory: &mut DatabaseFactory,
+    bundle: &DatabaseBundle,
+) {
     let event = Mint::decode_log(&log.inner, true).unwrap();
     let transaction_hash = log.transaction_hash.unwrap().to_string();
 
@@ -32,13 +41,7 @@ pub async fn handle_mint(log: Log, timestamp: i32, db: &Database) {
 
     let pair_address = event.address.to_string().to_lowercase();
 
-    let (pair_result, mut factory, bundle) = tokio::join!(
-        db.get_pair(&pair_address),
-        db.get_factory(),
-        db.get_bundle()
-    );
-
-    let mut pair = pair_result.unwrap();
+    let mut pair = db.get_pair(&pair_address).await.unwrap();
 
     let (token0_request, token1_request) = tokio::join!(
         db.get_token(&pair.token0),
@@ -69,7 +72,7 @@ pub async fn handle_mint(log: Log, timestamp: i32, db: &Database) {
     let amount_total_usd = (token1.derived_eth.clone()
         * token1_amount.clone())
         + (token0.derived_eth.clone() * token0_amount.clone())
-            * bundle.eth_price;
+            * bundle.eth_price.clone();
 
     pair.tx_count += 1;
     factory.tx_count += 1;
@@ -84,11 +87,10 @@ pub async fn handle_mint(log: Log, timestamp: i32, db: &Database) {
         db.update_token(&token0),
         db.update_token(&token1),
         db.update_pair(&pair),
-        db.update_factory(&factory),
         db.update_mint(&mint),
         update_pair_day_data(&pair, timestamp, db),
         update_pair_hour_data(&pair, timestamp, db),
-        update_dex_day_data(&factory, db, timestamp),
+        update_dex_day_data(factory, db, timestamp),
         update_token_day_data(&token0, timestamp, db),
         update_token_day_data(&token1, timestamp, db),
     );

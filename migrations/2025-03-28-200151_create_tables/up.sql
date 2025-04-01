@@ -178,4 +178,3 @@ CREATE TABLE sync_state (
     id TEXT PRIMARY KEY,
     last_block_indexed INTEGER NOT NULL
 );
-

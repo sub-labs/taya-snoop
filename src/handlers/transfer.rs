@@ -43,8 +43,7 @@ pub async fn handle_transfer(
     let value = convert_token_to_decimal(&parse_u256(event.value), 18);
     let log_index = log.log_index.unwrap() as i32;
 
-    let (factory, pair_result, transaction_result) = tokio::join!(
-        db.get_factory(),
+    let (pair_result, transaction_result) = tokio::join!(
         db.get_pair(&pair_address),
         db.get_transaction(&transaction_hash)
     );
@@ -86,7 +85,6 @@ pub async fn handle_transfer(
             tokio::join!(
                 db.update_mint(&mint),
                 db.update_transaction(&transaction),
-                db.update_factory(&factory)
             );
         }
     }
