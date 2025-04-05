@@ -103,7 +103,7 @@ pub async fn handle_mint(
     tokio::join!(
         update_pair_day_data(&pair, timestamp, db),
         update_pair_hour_data(&pair, timestamp, db),
-        update_dex_day_data(&cache.factory, db, timestamp),
+        update_dex_day_data(db, timestamp, cache),
         update_token_day_data(&token0, timestamp, db),
         update_token_day_data(&token1, timestamp, db),
     );

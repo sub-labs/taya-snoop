@@ -44,7 +44,11 @@ pub struct StorageCache {
     pub transactions: HashMap<String, DatabaseTransaction>,
     pub mints: HashMap<String, DatabaseMint>,
     pub swaps: HashMap<String, DatabaseSwap>,
-    pub burns: HashMap<String, DatabaseBundle>,
+    pub burns: HashMap<String, DatabaseBurn>,
+    pub pair_day_data: HashMap<String, DatabasePairDayData>,
+    pub pair_hour_data: HashMap<String, DatabasePairHourData>,
+    pub token_day_data: HashMap<String, DatabaseTokenDayData>,
+    pub dex_day_data: HashMap<String, DatabaseDexDayData>,
 }
 
 impl StorageCache {

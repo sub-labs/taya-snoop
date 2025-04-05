@@ -192,7 +192,7 @@ pub async fn handle_swap(
     ) = tokio::join!(
         update_pair_day_data(&pair, block_timestamp, db),
         update_pair_hour_data(&pair, block_timestamp, db),
-        update_dex_day_data(&cache.factory, db, block_timestamp),
+        update_dex_day_data(db, block_timestamp, cache),
         update_token_day_data(&token0, block_timestamp, db),
         update_token_day_data(&token1, block_timestamp, db)
     );

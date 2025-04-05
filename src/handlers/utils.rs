@@ -6,7 +6,6 @@ use crate::{
                 DatabaseDexDayData, DatabasePairDayData,
                 DatabasePairHourData, DatabaseTokenDayData,
             },
-            factory::DatabaseFactory,
             pair::DatabasePair,
             token::DatabaseToken,
         },
@@ -257,9 +256,9 @@ pub async fn get_tracked_liquidity_usd(
 }
 
 pub async fn update_dex_day_data(
-    factory: &DatabaseFactory,
     db: &Database,
     timestamp: i32,
+    cache: &mut StorageCache,
 ) -> DatabaseDexDayData {
     let day_id = timestamp / 86400;
     let day_start_timestamp = day_id * 86400;
@@ -274,10 +273,10 @@ pub async fn update_dex_day_data(
         };
 
     factory_day_data.total_liquidity_usd =
-        factory.total_liquidity_usd.clone();
+        cache.factory.total_liquidity_usd.clone();
     factory_day_data.total_liquidity_eth =
-        factory.total_liquidity_eth.clone();
-    factory_day_data.tx_count = factory.tx_count;
+        cache.factory.total_liquidity_eth.clone();
+    factory_day_data.tx_count = cache.factory.tx_count;
 
     db.update_dex_day_data(&factory_day_data).await;
 
