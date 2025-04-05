@@ -1,6 +1,8 @@
 pub mod models;
 pub mod schema;
 
+use std::collections::HashMap;
+
 use crate::chains::Chain;
 
 use diesel::{
@@ -32,6 +34,22 @@ use schema::{
     pair_hour_data, pairs, swaps, sync_state, token_day_data, tokens,
     transactions,
 };
+
+pub struct StorageCache {
+    pub db: Database,
+    pub factory: DatabaseFactory,
+    pub bundle: DatabaseBundle,
+    pub pairs: HashMap<String, DatabasePair>,
+    pub tokens: HashMap<String, DatabaseToken>,
+    pub transactions: HashMap<String, DatabaseTransaction>,
+    pub mints: HashMap<String, DatabaseMint>,
+    pub swaps: HashMap<String, DatabaseSwap>,
+    pub burns: HashMap<String, DatabaseBundle>,
+}
+
+impl StorageCache {
+    pub async fn store(&self) {}
+}
 
 pub const MIGRATIONS: EmbeddedMigrations =
     embed_migrations!("migrations/");

@@ -10,7 +10,7 @@ use crate::{
             pair::DatabasePair,
             token::DatabaseToken,
         },
-        Database,
+        Database, StorageCache,
     },
     utils::format::{one_bd, zero_bd},
 };
@@ -19,14 +19,23 @@ use bigdecimal::BigDecimal;
 pub async fn get_eth_price_usd(
     db: &Database,
     config: &Config,
+    cache: &StorageCache,
 ) -> BigDecimal {
-    let usdc_pair = match config.chain.usdc_weth_pair {
-        Some(pair) => db.get_pair(pair).await,
+    let usdc_pair: Option<DatabasePair> = match config.chain.usdc_weth_pair
+    {
+        Some(pair) => match cache.pairs.get(pair) {
+            Some(pair) => Some(pair.to_owned()),
+            None => db.get_pair(pair).await,
+        },
         None => None,
     };
 
-    let usdt_pair = match config.chain.usdt_weth_pair {
-        Some(pair) => db.get_pair(pair).await,
+    let usdt_pair: Option<DatabasePair> = match config.chain.usdt_weth_pair
+    {
+        Some(pair) => match cache.pairs.get(pair) {
+            Some(pair) => Some(pair.to_owned()),
+            None => db.get_pair(pair).await,
+        },
         None => None,
     };
 
@@ -52,6 +61,7 @@ pub async fn find_eth_per_token(
     token: &DatabaseToken,
     db: &Database,
     config: &Config,
+    cache: &StorageCache,
 ) -> BigDecimal {
     let token_address = token.id.to_lowercase();
 
@@ -71,10 +81,6 @@ pub async fn find_eth_per_token(
             continue;
         }
 
-        let pair_address: String = pair.unwrap().id.to_lowercase();
-
-        let pair = db.get_pair(&pair_address).await;
-
         if pair.is_none() {
             continue;
         }
@@ -90,12 +96,13 @@ pub async fn find_eth_per_token(
                     config.chain.minimum_liquidity_threshold_eth,
                 )
         {
-            let token0 = db.get_token(&pair_token0_address).await;
-            if token0.is_none() {
-                continue;
-            }
-
-            let token0 = token0.unwrap();
+            let token0 = match cache.tokens.get(&pair_token0_address) {
+                Some(token) => token.to_owned(),
+                None => match db.get_token(&pair_token0_address).await {
+                    Some(token) => token,
+                    None => continue,
+                },
+            };
 
             return pair.token0_price * token0.derived_eth;
         }
@@ -106,12 +113,13 @@ pub async fn find_eth_per_token(
                     config.chain.minimum_liquidity_threshold_eth,
                 )
         {
-            let token1 = db.get_token(&pair_token1_address).await;
-            if token1.is_none() {
-                continue;
-            }
-
-            let token1 = token1.unwrap();
+            let token1 = match cache.tokens.get(&pair_token1_address) {
+                Some(token) => token.to_owned(),
+                None => match db.get_token(&pair_token1_address).await {
+                    Some(token) => token,
+                    None => continue,
+                },
+            };
 
             return pair.token1_price * token1.derived_eth;
         }

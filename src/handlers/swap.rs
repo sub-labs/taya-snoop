@@ -4,11 +4,8 @@ use bigdecimal::BigDecimal;
 use crate::{
     configs::Config,
     db::{
-        models::{
-            bundle::DatabaseBundle, factory::DatabaseFactory,
-            swap::DatabaseSwap, transaction::DatabaseTransaction,
-        },
-        Database,
+        models::{swap::DatabaseSwap, transaction::DatabaseTransaction},
+        Database, StorageCache,
     },
     utils::format::{convert_token_to_decimal, parse_u256, zero_bd},
 };
@@ -34,8 +31,7 @@ pub async fn handle_swap(
     block_timestamp: i32,
     db: &Database,
     config: &Config,
-    factory: &mut DatabaseFactory,
-    bundle: &DatabaseBundle,
+    cache: &mut StorageCache,
 ) {
     let event = Swap::decode_log(&log.inner, true).unwrap();
     let pair_address = event.address.to_string().to_lowercase();
@@ -44,33 +40,41 @@ pub async fn handle_swap(
     let transaction_hash = log.transaction_hash.unwrap().to_string();
     let block_number = log.block_number.unwrap() as i32;
 
-    let (pair_result, transction_result) = tokio::join!(
-        db.get_pair(&pair_address),
-        db.get_transaction(&transaction_hash)
-    );
-
-    let mut pair = pair_result.unwrap();
-
-    let mut transaction = match transction_result {
-        Some(tx) => tx,
-        None => DatabaseTransaction::new(
-            transaction_hash.clone(),
-            block_number,
-            block_timestamp,
-        ),
+    let mut pair = match cache.pairs.get(&pair_address) {
+        Some(pair) => pair.to_owned(),
+        None => db.get_pair(&pair_address).await.unwrap(),
     };
 
-    let (token0_result, token1_result) = tokio::join!(
-        db.get_token(&pair.token0),
-        db.get_token(&pair.token1)
-    );
+    let mut transaction = match cache.transactions.get(&transaction_hash) {
+        Some(transaction) => transaction.to_owned(),
+        None => match db.get_transaction(&transaction_hash).await {
+            Some(tx) => tx,
+            None => DatabaseTransaction::new(
+                transaction_hash.clone(),
+                block_number,
+                block_timestamp,
+            ),
+        },
+    };
 
-    if token0_result.is_none() || token1_result.is_none() {
-        return;
-    }
+    let token0_address = pair.token0.to_lowercase();
+    let token1_address = pair.token1.to_lowercase();
 
-    let mut token0 = token0_result.unwrap();
-    let mut token1 = token1_result.unwrap();
+    let mut token0 = match cache.tokens.get(&token0_address) {
+        Some(token) => token.to_owned(),
+        None => match db.get_token(&token0_address).await {
+            Some(token) => token,
+            None => return,
+        },
+    };
+
+    let mut token1 = match cache.tokens.get(&token1_address) {
+        Some(token) => token.to_owned(),
+        None => match db.get_token(&token1_address).await {
+            Some(token) => token,
+            None => return,
+        },
+    };
 
     let amount0_in = convert_token_to_decimal(
         &parse_u256(event.amount0In),
@@ -96,7 +100,8 @@ pub async fn handle_swap(
         + (token0.derived_eth.clone() * amount0_total.clone()))
         / 2;
 
-    let derived_amount_usd = derived_amount_eth * bundle.eth_price.clone();
+    let derived_amount_usd =
+        derived_amount_eth * cache.bundle.eth_price.clone();
 
     let tracked_amount_usd = get_tracked_volume_usd(
         amount0_total.clone(),
@@ -110,9 +115,11 @@ pub async fn handle_swap(
     .await;
 
     let tracked_amount_eth: BigDecimal =
-        match bundle.eth_price == zero_bd() {
+        match cache.bundle.eth_price == zero_bd() {
             true => zero_bd(),
-            false => tracked_amount_usd.clone() / bundle.eth_price.clone(),
+            false => {
+                tracked_amount_usd.clone() / cache.bundle.eth_price.clone()
+            }
         };
 
     token0.trade_volume += amount0_in.clone() + amount0_out.clone();
@@ -132,13 +139,14 @@ pub async fn handle_swap(
     pair.untracked_volume_usd += derived_amount_usd.clone();
     pair.tx_count += 1;
 
-    factory.total_volume_usd += tracked_amount_usd.clone();
-    factory.total_volume_eth =
-        factory.total_volume_eth.clone() + tracked_amount_eth.clone();
+    cache.factory.total_volume_usd += tracked_amount_usd.clone();
+    cache.factory.total_volume_eth =
+        cache.factory.total_volume_eth.clone()
+            + tracked_amount_eth.clone();
 
-    factory.untracked_volume_usd += derived_amount_usd.clone();
+    cache.factory.untracked_volume_usd += derived_amount_usd.clone();
 
-    factory.tx_count += 1;
+    cache.factory.tx_count += 1;
 
     let swap_id = format!(
         "{}-{}",
@@ -171,8 +179,6 @@ pub async fn handle_swap(
 
     tokio::join!(
         db.update_pair(&pair),
-        db.update_token(&token0),
-        db.update_token(&token1),
         db.update_swap(&swap),
         db.update_transaction(&transaction),
     );
@@ -186,7 +192,7 @@ pub async fn handle_swap(
     ) = tokio::join!(
         update_pair_day_data(&pair, block_timestamp, db),
         update_pair_hour_data(&pair, block_timestamp, db),
-        update_dex_day_data(factory, db, block_timestamp),
+        update_dex_day_data(&cache.factory, db, block_timestamp),
         update_token_day_data(&token0, block_timestamp, db),
         update_token_day_data(&token1, block_timestamp, db)
     );
@@ -206,16 +212,18 @@ pub async fn handle_swap(
     token0_day_data.daily_volume_token += amount0_total.clone();
     token0_day_data.daily_volume_eth +=
         amount0_total.clone() * token0.derived_eth.clone();
-    token0_day_data.daily_volume_usd +=
-        amount0_total * token0.derived_eth * bundle.eth_price.clone();
+    token0_day_data.daily_volume_usd += amount0_total
+        * token0.derived_eth
+        * cache.bundle.eth_price.clone();
 
     token1_day_data.daily_volume_token += amount1_total.clone();
 
     token1_day_data.daily_volume_eth +=
         amount1_total.clone() * token1.derived_eth.clone();
 
-    token1_day_data.daily_volume_usd +=
-        amount1_total * token1.derived_eth * bundle.eth_price.clone();
+    token1_day_data.daily_volume_usd += amount1_total
+        * token1.derived_eth
+        * cache.bundle.eth_price.clone();
 
     tokio::join!(
         db.update_dex_day_data(&dex_day_data),

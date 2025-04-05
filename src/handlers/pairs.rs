@@ -3,10 +3,7 @@ use log::info;
 
 use crate::{
     db::{
-        models::{
-            factory::DatabaseFactory, pair::DatabasePair,
-            token::DatabaseToken,
-        },
+        models::{pair::DatabasePair, token::DatabaseToken},
         Database,
     },
     rpc::Rpc,
@@ -16,12 +13,7 @@ sol! {
     event PairCreated(address indexed token0, address indexed token1, address pair, uint);
 }
 
-pub async fn handle_pairs(
-    factory: &mut DatabaseFactory,
-    pairs: Vec<Log>,
-    db: &Database,
-    rpc: &Rpc,
-) {
+pub async fn handle_pairs(pairs: Vec<Log>, db: &Database, rpc: &Rpc) {
     let mut count_tokens = 0;
 
     let count_pairs = pairs.len();
@@ -37,6 +29,8 @@ pub async fn handle_pairs(
             db.get_token(&token0_address),
             db.get_token(&token1_address)
         );
+
+        let mut factory = db.get_factory().await;
 
         factory.pair_count += 1;
         factory.pairs.push(Some(pair_address));
@@ -79,7 +73,7 @@ pub async fn handle_pairs(
 
         let pair = DatabasePair::new(event, block_timestamp, block_number);
 
-        tokio::join!(db.update_factory(factory), db.update_pair(&pair));
+        tokio::join!(db.update_factory(&factory), db.update_pair(&pair));
     }
 
     info!("Stored {} pairs and {} tokens", count_pairs, count_tokens);

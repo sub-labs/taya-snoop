@@ -7,7 +7,7 @@ use crate::{
             burn::DatabaseBurn, mint::DatabaseMint,
             transaction::DatabaseTransaction,
         },
-        Database,
+        Database, StorageCache,
     },
     utils::format::{address_zero, convert_token_to_decimal, parse_u256},
 };
@@ -16,8 +16,15 @@ sol! {
     event Transfer(address indexed from,address indexed to,uint256 value);
 }
 
-async fn is_complete_mint(mint_id: String, db: &Database) -> bool {
-    let mint = db.get_mint(&mint_id).await.unwrap();
+async fn is_complete_mint(
+    mint_id: String,
+    db: &Database,
+    cache: &StorageCache,
+) -> bool {
+    let mint = match cache.mints.get(&mint_id) {
+        Some(mint) => mint.to_owned(),
+        None => db.get_mint(&mint_id).await.unwrap(),
+    };
 
     mint.sender == address_zero()
 }
@@ -26,6 +33,7 @@ pub async fn handle_transfer(
     log: Log,
     block_timestamp: i32,
     db: &Database,
+    cache: &mut StorageCache,
 ) {
     let event = Transfer::decode_log(&log.inner, true).unwrap();
     let from_address = event.from.to_string().to_lowercase();
@@ -43,20 +51,22 @@ pub async fn handle_transfer(
     let value = convert_token_to_decimal(&parse_u256(event.value), 18);
     let log_index = log.log_index.unwrap() as i32;
 
-    let (pair_result, transaction_result) = tokio::join!(
-        db.get_pair(&pair_address),
-        db.get_transaction(&transaction_hash)
-    );
+    let mut pair = match cache.pairs.get(&pair_address) {
+        Some(pair) => pair.to_owned(),
+        None => db.get_pair(&pair_address).await.unwrap(),
+    };
 
-    let mut pair = pair_result.unwrap();
-
-    let mut transaction = transaction_result.unwrap_or_else(|| {
-        DatabaseTransaction::new(
-            transaction_hash.clone(),
-            block_number,
-            block_timestamp,
-        )
-    });
+    let mut transaction = match cache.transactions.get(&transaction_hash) {
+        Some(transaction) => transaction.to_owned(),
+        None => match db.get_transaction(&transaction_hash).await {
+            Some(tx) => tx,
+            None => DatabaseTransaction::new(
+                transaction_hash.clone(),
+                block_number,
+                block_timestamp,
+            ),
+        },
+    };
 
     if from_address == address_zero() {
         pair.total_supply += value.clone();
@@ -65,6 +75,7 @@ pub async fn handle_transfer(
             || is_complete_mint(
                 transaction.mints.last().unwrap().clone().unwrap(),
                 db,
+                cache,
             )
             .await
         {
@@ -166,10 +177,15 @@ pub async fn handle_transfer(
             let last_mint_id =
                 transaction.mints.last().unwrap().clone().unwrap();
 
-            if !is_complete_mint(last_mint_id.clone(), db).await {
+            if !is_complete_mint(last_mint_id.clone(), db, cache).await {
                 let mint_id =
                     transaction.mints.last().unwrap().as_ref().unwrap();
-                let mint = db.get_mint(mint_id).await.unwrap();
+
+                let mint = match cache.mints.get(mint_id) {
+                    Some(mint) => mint.to_owned(),
+                    None => db.get_mint(mint_id).await.unwrap(),
+                };
+
                 burn.fee_to = mint.to;
                 burn.fee_liquidity = mint.liquidity;
                 transaction.mints.pop();
