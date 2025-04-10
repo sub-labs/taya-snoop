@@ -487,7 +487,6 @@ impl Database {
                 burns::to.eq(excluded(burns::to)),
                 burns::log_index.eq(excluded(burns::log_index)),
                 burns::amount_usd.eq(excluded(burns::amount_usd)),
-                burns::id.eq(excluded(burns::id)),
                 burns::needs_complete.eq(excluded(burns::needs_complete)),
                 burns::fee_to.eq(excluded(burns::fee_to)),
                 burns::fee_liquidity.eq(excluded(burns::fee_liquidity)),
