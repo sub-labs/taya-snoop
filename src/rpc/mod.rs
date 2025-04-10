@@ -64,45 +64,74 @@ impl Rpc {
         last_block: u64,
         config: &Config,
     ) -> Option<Vec<Log>> {
-        let filter = Filter::new()
-            .from_block(BlockNumberOrTag::Number(first_block))
-            .to_block(BlockNumberOrTag::Number(last_block))
-            .address(config.chain.factory.parse::<Address>().unwrap())
-            .event(PairCreated::SIGNATURE);
+        let mut all_logs = Vec::new();
 
-        match self.client.get_logs(&filter).await {
-            Ok(logs) => Some(logs),
-            Err(_) => None,
+        let rpc_block_limit = 100;
+
+        let mut current_block = first_block;
+        while current_block <= last_block {
+            let end_block = std::cmp::min(
+                current_block + rpc_block_limit - 1,
+                last_block,
+            );
+
+            let filter = Filter::new()
+                .from_block(BlockNumberOrTag::Number(current_block))
+                .to_block(BlockNumberOrTag::Number(end_block))
+                .address(config.chain.factory.parse::<Address>().unwrap())
+                .event(PairCreated::SIGNATURE);
+
+            let batch_logs = self.client.get_logs(&filter).await.unwrap();
+
+            all_logs.extend(batch_logs);
+
+            current_block = end_block + 1;
         }
+
+        Some(all_logs)
     }
 
     pub async fn get_pairs_logs_batch(
         &self,
         pairs: &[String],
-        first_block: i32,
-        last_block: i32,
+        first_block: u64,
+        last_block: u64,
     ) -> Option<Vec<Log>> {
         let address_pairs: Vec<Address> = pairs
             .iter()
             .map(|pair| Address::from_str(pair).unwrap())
             .collect();
 
-        let filter = Filter::new()
-            .from_block(BlockNumberOrTag::Number(first_block as u64))
-            .to_block(BlockNumberOrTag::Number(last_block as u64))
-            .address(address_pairs)
-            .events(vec![
-                Mint::SIGNATURE,
-                Burn::SIGNATURE,
-                Swap::SIGNATURE,
-                Sync::SIGNATURE,
-                Transfer::SIGNATURE,
-            ]);
+        let mut all_logs = Vec::new();
+        let rpc_block_limit = 100;
 
-        match self.client.get_logs(&filter).await {
-            Ok(logs) => Some(logs),
-            Err(_) => None,
+        let mut current_block = first_block;
+        while current_block <= last_block {
+            let end_block = std::cmp::min(
+                current_block + rpc_block_limit - 1,
+                last_block,
+            );
+
+            let filter = Filter::new()
+                .from_block(BlockNumberOrTag::Number(current_block))
+                .to_block(BlockNumberOrTag::Number(end_block))
+                .address(address_pairs.clone())
+                .events(vec![
+                    Mint::SIGNATURE,
+                    Burn::SIGNATURE,
+                    Swap::SIGNATURE,
+                    Sync::SIGNATURE,
+                    Transfer::SIGNATURE,
+                ]);
+
+            let batch_logs = self.client.get_logs(&filter).await.unwrap();
+
+            all_logs.extend(batch_logs);
+
+            current_block = end_block + 1;
         }
+
+        Some(all_logs)
     }
 
     pub async fn get_token_information(

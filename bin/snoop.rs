@@ -111,7 +111,11 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
                 .collect();
 
             let mut event_logs = match rpc
-                .get_pairs_logs_batch(&pairs, first_block, last_block)
+                .get_pairs_logs_batch(
+                    &pairs,
+                    first_block as u64,
+                    last_block as u64,
+                )
                 .await
             {
                 Some(logs) => logs,
