@@ -177,25 +177,24 @@ pub async fn handle_swap(
 
     transaction.swaps.push(Some(swap.id.clone()));
 
-    tokio::join!(
-        db.update_pair(&pair),
-        db.update_swap(&swap),
-        db.update_transaction(&transaction),
-    );
+    cache.tokens.insert(token0.id.clone(), token0.clone());
+    cache.tokens.insert(token1.id.clone(), token1.clone());
+    cache.pairs.insert(pair.id.clone(), pair.clone());
+    cache.swaps.insert(swap.id.clone(), swap);
+    cache.transactions.insert(transaction.id.clone(), transaction);
 
-    let (
-        mut pair_day_data,
-        mut pair_hour_data,
-        mut dex_day_data,
-        mut token0_day_data,
-        mut token1_day_data,
-    ) = tokio::join!(
-        update_pair_day_data(&pair, block_timestamp, db),
-        update_pair_hour_data(&pair, block_timestamp, db),
-        update_dex_day_data(db, block_timestamp, cache),
-        update_token_day_data(&token0, block_timestamp, db),
-        update_token_day_data(&token1, block_timestamp, db)
-    );
+    let mut pair_day_data =
+        update_pair_day_data(&pair, block_timestamp, db, cache).await;
+    let mut pair_hour_data =
+        update_pair_hour_data(&pair, block_timestamp, db, cache).await;
+    let mut dex_day_data =
+        update_dex_day_data(db, block_timestamp, cache).await;
+
+    let mut token0_day_data =
+        update_token_day_data(&token0, block_timestamp, db, cache).await;
+
+    let mut token1_day_data =
+        update_token_day_data(&token1, block_timestamp, db, cache).await;
 
     dex_day_data.daily_volume_usd += tracked_amount_usd.clone();
     dex_day_data.daily_volume_eth += tracked_amount_eth;
@@ -225,11 +224,15 @@ pub async fn handle_swap(
         * token1.derived_eth
         * cache.bundle.eth_price.clone();
 
-    tokio::join!(
-        db.update_dex_day_data(&dex_day_data),
-        db.update_pair_day_data(&pair_day_data),
-        db.update_pair_hour_data(&pair_hour_data),
-        db.update_token_day_data(&token0_day_data),
-        db.update_token_day_data(&token1_day_data),
-    );
+    cache.dex_day_data.insert(dex_day_data.id.clone(), dex_day_data);
+    cache.pairs_day_data.insert(pair_day_data.id.clone(), pair_day_data);
+    cache
+        .pairs_hour_data
+        .insert(pair_hour_data.id.clone(), pair_hour_data);
+    cache
+        .tokens_day_data
+        .insert(token0_day_data.id.clone(), token0_day_data);
+    cache
+        .tokens_day_data
+        .insert(token1_day_data.id.clone(), token1_day_data);
 }

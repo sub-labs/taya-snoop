@@ -93,10 +93,11 @@ pub async fn handle_transfer(
                 log_index,
             );
             transaction.mints.push(Some(mint.id.clone()));
-            tokio::join!(
-                db.update_mint(&mint),
-                db.update_transaction(&transaction),
-            );
+
+            cache.mints.insert(mint.id.clone(), mint);
+            cache
+                .transactions
+                .insert(transaction.id.clone(), transaction.clone());
         }
     }
 
@@ -117,10 +118,11 @@ pub async fn handle_transfer(
         );
 
         transaction.burns.push(Some(burn.id.clone()));
-        tokio::join!(
-            db.update_burn(&burn),
-            db.update_transaction(&transaction)
-        );
+
+        cache.burns.insert(burn.id.clone(), burn);
+        cache
+            .transactions
+            .insert(transaction.id.clone(), transaction.clone());
     }
 
     if to_address == address_zero() && from_address == pair_address {
@@ -130,7 +132,10 @@ pub async fn handle_transfer(
             let last_burn_id =
                 transaction.burns.last().unwrap().as_ref().unwrap();
 
-            let current_burn = db.get_burn(last_burn_id).await.unwrap();
+            let current_burn = match cache.burns.get(last_burn_id) {
+                Some(transaction) => transaction.to_owned(),
+                None => db.get_burn(last_burn_id).await.unwrap(),
+            };
 
             if current_burn.needs_complete {
                 current_burn
@@ -189,11 +194,14 @@ pub async fn handle_transfer(
                 burn.fee_to = mint.to;
                 burn.fee_liquidity = mint.liquidity;
                 transaction.mints.pop();
-                db.update_transaction(&transaction).await;
+
+                cache
+                    .transactions
+                    .insert(transaction.id.clone(), transaction.clone());
             }
         }
 
-        db.update_burn(&burn).await;
+        cache.burns.insert(burn.id.clone(), burn.clone());
 
         if burn.needs_complete {
             transaction.burns.insert(
@@ -204,11 +212,11 @@ pub async fn handle_transfer(
             transaction.burns.push(Some(burn.id));
         }
 
-        db.update_transaction(&transaction).await;
+        cache
+            .transactions
+            .insert(transaction.id.clone(), transaction.clone());
     }
 
-    tokio::join!(
-        db.update_pair(&pair),
-        db.update_transaction(&transaction)
-    );
+    cache.pairs.insert(pair.id.clone(), pair.clone());
+    cache.transactions.insert(transaction.id.clone(), transaction.clone());
 }

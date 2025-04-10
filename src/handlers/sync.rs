@@ -75,6 +75,8 @@ pub async fn handle_sync(
         pair.token1_price = zero_bd()
     }
 
+    cache.pairs.insert(pair.id.clone(), pair.clone());
+
     cache.bundle.eth_price = get_eth_price_usd(db, config, cache).await;
 
     token0.derived_eth =
@@ -115,5 +117,7 @@ pub async fn handle_sync(
     token0.total_liquidity += pair.reserve0.clone();
     token1.total_liquidity += pair.reserve1.clone();
 
-    db.update_pair(&pair).await
+    cache.pairs.insert(pair.id.clone(), pair);
+    cache.tokens.insert(token0.id.clone(), token0);
+    cache.tokens.insert(token1.id.clone(), token1);
 }

@@ -96,6 +96,10 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
             mints: HashMap::new(),
             swaps: HashMap::new(),
             burns: HashMap::new(),
+            pairs_day_data: HashMap::new(),
+            pairs_hour_data: HashMap::new(),
+            tokens_day_data: HashMap::new(),
+            dex_day_data: HashMap::new(),
         };
 
         if !factory.pair_count != 0 {

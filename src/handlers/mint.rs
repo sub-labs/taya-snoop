@@ -100,11 +100,9 @@ pub async fn handle_mint(
     cache.tokens.insert(token0.id.clone(), token0.clone());
     cache.tokens.insert(token1.id.clone(), token1.clone());
 
-    tokio::join!(
-        update_pair_day_data(&pair, timestamp, db),
-        update_pair_hour_data(&pair, timestamp, db),
-        update_dex_day_data(db, timestamp, cache),
-        update_token_day_data(&token0, timestamp, db),
-        update_token_day_data(&token1, timestamp, db),
-    );
+    update_pair_day_data(&pair, timestamp, db, cache).await;
+    update_pair_hour_data(&pair, timestamp, db, cache).await;
+    update_dex_day_data(db, timestamp, cache).await;
+    update_token_day_data(&token0, timestamp, db, cache).await;
+    update_token_day_data(&token1, timestamp, db, cache).await;
 }

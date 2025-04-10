@@ -6,8 +6,9 @@ use std::collections::HashMap;
 use crate::chains::Chain;
 
 use diesel::{
-    BoolExpressionMethods, Connection, ExpressionMethods,
-    OptionalExtension, PgConnection, QueryDsl, QueryResult, RunQueryDsl,
+    upsert::excluded, BoolExpressionMethods, Connection,
+    ExpressionMethods, OptionalExtension, PgConnection, QueryDsl,
+    QueryResult, RunQueryDsl,
 };
 use diesel_migrations::{
     embed_migrations, EmbeddedMigrations, MigrationHarness,
@@ -45,14 +46,59 @@ pub struct StorageCache {
     pub mints: HashMap<String, DatabaseMint>,
     pub swaps: HashMap<String, DatabaseSwap>,
     pub burns: HashMap<String, DatabaseBurn>,
-    pub pair_day_data: HashMap<String, DatabasePairDayData>,
-    pub pair_hour_data: HashMap<String, DatabasePairHourData>,
-    pub token_day_data: HashMap<String, DatabaseTokenDayData>,
+    pub pairs_day_data: HashMap<String, DatabasePairDayData>,
+    pub pairs_hour_data: HashMap<String, DatabasePairHourData>,
+    pub tokens_day_data: HashMap<String, DatabaseTokenDayData>,
     pub dex_day_data: HashMap<String, DatabaseDexDayData>,
 }
 
 impl StorageCache {
-    pub async fn store(&self) {}
+    pub async fn store(&self) {
+        let pairs: Vec<DatabasePair> =
+            self.pairs.clone().into_values().collect();
+
+        let tokens: Vec<DatabaseToken> =
+            self.tokens.clone().into_values().collect();
+
+        let transactions: Vec<DatabaseTransaction> =
+            self.transactions.clone().into_values().collect();
+
+        let mints: Vec<DatabaseMint> =
+            self.mints.clone().into_values().collect();
+
+        let swaps: Vec<DatabaseSwap> =
+            self.swaps.clone().into_values().collect();
+
+        let burns: Vec<DatabaseBurn> =
+            self.burns.clone().into_values().collect();
+
+        let pairs_day_data: Vec<DatabasePairDayData> =
+            self.pairs_day_data.clone().into_values().collect();
+
+        let pairs_hour_data: Vec<DatabasePairHourData> =
+            self.pairs_hour_data.clone().into_values().collect();
+
+        let tokens_day_data: Vec<DatabaseTokenDayData> =
+            self.tokens_day_data.clone().into_values().collect();
+
+        let dex_day_data: Vec<DatabaseDexDayData> =
+            self.dex_day_data.clone().into_values().collect();
+
+        tokio::join!(
+            self.db.update_factory(&self.factory),
+            self.db.update_bundle(&self.bundle),
+            self.db.update_pairs(&pairs),
+            self.db.update_tokens(&tokens),
+            self.db.update_burns(&burns),
+            self.db.update_mints(&mints),
+            self.db.update_swaps(&swaps),
+            self.db.update_transactions(&transactions),
+            self.db.update_dexes_day_data(&dex_day_data),
+            self.db.update_pairs_day_data(&pairs_day_data),
+            self.db.update_pairs_hour_data(&pairs_hour_data),
+            self.db.update_tokens_day_data(&tokens_day_data)
+        );
+    }
 }
 
 pub const MIGRATIONS: EmbeddedMigrations =
@@ -335,6 +381,33 @@ impl Database {
             .unwrap();
     }
 
+    pub async fn update_tokens(&self, data: &Vec<DatabaseToken>) {
+        let mut connection: PgConnection = self.get_connection();
+
+        diesel::insert_into(tokens::dsl::tokens)
+            .values(data)
+            .on_conflict(tokens::id)
+            .do_update()
+            .set((
+                tokens::id.eq(excluded(tokens::id)),
+                tokens::symbol.eq(excluded(tokens::symbol)),
+                tokens::name.eq(excluded(tokens::name)),
+                tokens::decimals.eq(excluded(tokens::decimals)),
+                tokens::total_supply.eq(excluded(tokens::total_supply)),
+                tokens::trade_volume.eq(excluded(tokens::trade_volume)),
+                tokens::trade_volume_usd
+                    .eq(excluded(tokens::trade_volume_usd)),
+                tokens::untracked_volume_usd
+                    .eq(excluded(tokens::untracked_volume_usd)),
+                tokens::tx_count.eq(excluded(tokens::tx_count)),
+                tokens::total_liquidity
+                    .eq(excluded(tokens::total_liquidity)),
+                tokens::derived_eth.eq(excluded(tokens::derived_eth)),
+            ))
+            .execute(&mut connection)
+            .unwrap();
+    }
+
     pub async fn update_pair(&self, data: &DatabasePair) {
         let mut connection: PgConnection = self.get_connection();
 
@@ -343,6 +416,42 @@ impl Database {
             .on_conflict(pairs::id)
             .do_update()
             .set(data)
+            .execute(&mut connection)
+            .unwrap();
+    }
+
+    pub async fn update_pairs(&self, data: &Vec<DatabasePair>) {
+        let mut connection: PgConnection = self.get_connection();
+
+        diesel::insert_into(pairs::dsl::pairs)
+            .values(data)
+            .on_conflict(pairs::id)
+            .do_update()
+            .set((
+                pairs::token0.eq(excluded(pairs::token0)),
+                pairs::token1.eq(excluded(pairs::token1)),
+                pairs::reserve0.eq(excluded(pairs::reserve0)),
+                pairs::reserve1.eq(excluded(pairs::reserve1)),
+                pairs::total_supply.eq(excluded(pairs::total_supply)),
+                pairs::reserve_eth.eq(excluded(pairs::reserve_eth)),
+                pairs::reserve_usd.eq(excluded(pairs::reserve_usd)),
+                pairs::tracked_reserve_eth
+                    .eq(excluded(pairs::tracked_reserve_eth)),
+                pairs::token0_price.eq(excluded(pairs::token0_price)),
+                pairs::token1_price.eq(excluded(pairs::token1_price)),
+                pairs::volume_token0.eq(excluded(pairs::volume_token0)),
+                pairs::volume_token1.eq(excluded(pairs::volume_token1)),
+                pairs::volume_usd.eq(excluded(pairs::volume_usd)),
+                pairs::untracked_volume_usd
+                    .eq(excluded(pairs::untracked_volume_usd)),
+                pairs::tx_count.eq(excluded(pairs::tx_count)),
+                pairs::created_at_timestamp
+                    .eq(excluded(pairs::created_at_timestamp)),
+                pairs::created_at_block_number
+                    .eq(excluded(pairs::created_at_block_number)),
+                pairs::liquidity_provider_count
+                    .eq(excluded(pairs::liquidity_provider_count)),
+            ))
             .execute(&mut connection)
             .unwrap();
     }
@@ -359,6 +468,34 @@ impl Database {
             .unwrap();
     }
 
+    pub async fn update_burns(&self, data: &Vec<DatabaseBurn>) {
+        let mut connection: PgConnection = self.get_connection();
+
+        diesel::insert_into(burns::dsl::burns)
+            .values(data)
+            .on_conflict(burns::id)
+            .do_update()
+            .set((
+                burns::id.eq(excluded(burns::id)),
+                burns::transaction.eq(excluded(burns::transaction)),
+                burns::timestamp.eq(excluded(burns::timestamp)),
+                burns::pair.eq(excluded(burns::pair)),
+                burns::liquidity.eq(excluded(burns::liquidity)),
+                burns::sender.eq(excluded(burns::sender)),
+                burns::amount0.eq(excluded(burns::amount0)),
+                burns::amount1.eq(excluded(burns::amount1)),
+                burns::to.eq(excluded(burns::to)),
+                burns::log_index.eq(excluded(burns::log_index)),
+                burns::amount_usd.eq(excluded(burns::amount_usd)),
+                burns::id.eq(excluded(burns::id)),
+                burns::needs_complete.eq(excluded(burns::needs_complete)),
+                burns::fee_to.eq(excluded(burns::fee_to)),
+                burns::fee_liquidity.eq(excluded(burns::fee_liquidity)),
+            ))
+            .execute(&mut connection)
+            .unwrap();
+    }
+
     pub async fn update_mint(&self, data: &DatabaseMint) {
         let mut connection: PgConnection = self.get_connection();
 
@@ -367,6 +504,32 @@ impl Database {
             .on_conflict(mints::id)
             .do_update()
             .set(data)
+            .execute(&mut connection)
+            .unwrap();
+    }
+
+    pub async fn update_mints(&self, data: &Vec<DatabaseMint>) {
+        let mut connection: PgConnection = self.get_connection();
+
+        diesel::insert_into(mints::dsl::mints)
+            .values(data)
+            .on_conflict(mints::id)
+            .do_update()
+            .set((
+                mints::id.eq(excluded(mints::id)),
+                mints::transaction.eq(excluded(mints::transaction)),
+                mints::timestamp.eq(excluded(mints::timestamp)),
+                mints::pair.eq(excluded(mints::pair)),
+                mints::to.eq(excluded(mints::to)),
+                mints::liquidity.eq(excluded(mints::liquidity)),
+                mints::sender.eq(excluded(mints::sender)),
+                mints::amount0.eq(excluded(mints::amount0)),
+                mints::amount1.eq(excluded(mints::amount1)),
+                mints::log_index.eq(excluded(mints::log_index)),
+                mints::amount_usd.eq(excluded(mints::amount_usd)),
+                mints::fee_to.eq(excluded(mints::fee_to)),
+                mints::fee_liquidity.eq(excluded(mints::fee_liquidity)),
+            ))
             .execute(&mut connection)
             .unwrap();
     }
@@ -395,6 +558,32 @@ impl Database {
             .unwrap();
     }
 
+    pub async fn update_swaps(&self, data: &Vec<DatabaseSwap>) {
+        let mut connection: PgConnection = self.get_connection();
+
+        diesel::insert_into(swaps::dsl::swaps)
+            .values(data)
+            .on_conflict(swaps::id)
+            .do_update()
+            .set((
+                swaps::id.eq(excluded(swaps::id)),
+                swaps::transaction.eq(excluded(swaps::transaction)),
+                swaps::timestamp.eq(excluded(swaps::timestamp)),
+                swaps::pair.eq(excluded(swaps::pair)),
+                swaps::sender.eq(excluded(swaps::sender)),
+                swaps::from.eq(excluded(swaps::from)),
+                swaps::amount0_in.eq(excluded(swaps::amount0_in)),
+                swaps::amount1_in.eq(excluded(swaps::amount1_in)),
+                swaps::amount0_out.eq(excluded(swaps::amount0_out)),
+                swaps::amount1_out.eq(excluded(swaps::amount1_out)),
+                swaps::to.eq(excluded(swaps::to)),
+                swaps::log_index.eq(excluded(swaps::log_index)),
+                swaps::amount_usd.eq(excluded(swaps::amount_usd)),
+            ))
+            .execute(&mut connection)
+            .unwrap();
+    }
+
     pub async fn update_transaction(&self, data: &DatabaseTransaction) {
         let mut connection: PgConnection = self.get_connection();
 
@@ -403,6 +592,30 @@ impl Database {
             .on_conflict(transactions::id)
             .do_update()
             .set(data)
+            .execute(&mut connection)
+            .unwrap();
+    }
+
+    pub async fn update_transactions(
+        &self,
+        data: &Vec<DatabaseTransaction>,
+    ) {
+        let mut connection: PgConnection = self.get_connection();
+
+        diesel::insert_into(transactions::dsl::transactions)
+            .values(data)
+            .on_conflict(transactions::id)
+            .do_update()
+            .set((
+                transactions::id.eq(excluded(transactions::id)),
+                transactions::block_number
+                    .eq(excluded(transactions::block_number)),
+                transactions::timestamp
+                    .eq(excluded(transactions::timestamp)),
+                transactions::mints.eq(excluded(transactions::mints)),
+                transactions::swaps.eq(excluded(transactions::swaps)),
+                transactions::burns.eq(excluded(transactions::burns)),
+            ))
             .execute(&mut connection)
             .unwrap();
     }
@@ -419,6 +632,40 @@ impl Database {
             .unwrap();
     }
 
+    pub async fn update_dexes_day_data(
+        &self,
+        data: &Vec<DatabaseDexDayData>,
+    ) {
+        let mut connection: PgConnection = self.get_connection();
+
+        diesel::insert_into(dex_day_data::dsl::dex_day_data)
+            .values(data)
+            .on_conflict(dex_day_data::id)
+            .do_update()
+            .set((
+                dex_day_data::id.eq(excluded(dex_day_data::id)),
+                dex_day_data::date.eq(excluded(dex_day_data::date)),
+                dex_day_data::daily_volume_eth
+                    .eq(excluded(dex_day_data::daily_volume_eth)),
+                dex_day_data::daily_volume_usd
+                    .eq(excluded(dex_day_data::daily_volume_usd)),
+                dex_day_data::daily_volume_untracked
+                    .eq(excluded(dex_day_data::daily_volume_untracked)),
+                dex_day_data::total_volume_eth
+                    .eq(excluded(dex_day_data::total_volume_eth)),
+                dex_day_data::total_liquidity_eth
+                    .eq(excluded(dex_day_data::total_liquidity_eth)),
+                dex_day_data::total_volume_usd
+                    .eq(excluded(dex_day_data::total_volume_usd)),
+                dex_day_data::total_liquidity_usd
+                    .eq(excluded(dex_day_data::total_liquidity_usd)),
+                dex_day_data::tx_count
+                    .eq(excluded(dex_day_data::tx_count)),
+            ))
+            .execute(&mut connection)
+            .unwrap();
+    }
+
     pub async fn update_pair_day_data(&self, data: &DatabasePairDayData) {
         let mut connection: PgConnection = self.get_connection();
 
@@ -427,6 +674,44 @@ impl Database {
             .on_conflict(pair_day_data::id)
             .do_update()
             .set(data)
+            .execute(&mut connection)
+            .unwrap();
+    }
+
+    pub async fn update_pairs_day_data(
+        &self,
+        data: &Vec<DatabasePairDayData>,
+    ) {
+        let mut connection: PgConnection = self.get_connection();
+
+        diesel::insert_into(pair_day_data::dsl::pair_day_data)
+            .values(data)
+            .on_conflict(pair_day_data::id)
+            .do_update()
+            .set((
+                pair_day_data::id.eq(excluded(pair_day_data::id)),
+                pair_day_data::date.eq(excluded(pair_day_data::date)),
+                pair_day_data::pair_address
+                    .eq(excluded(pair_day_data::pair_address)),
+                pair_day_data::token0.eq(excluded(pair_day_data::token0)),
+                pair_day_data::token1.eq(excluded(pair_day_data::token1)),
+                pair_day_data::reserve0
+                    .eq(excluded(pair_day_data::reserve0)),
+                pair_day_data::reserve1
+                    .eq(excluded(pair_day_data::reserve1)),
+                pair_day_data::total_supply
+                    .eq(excluded(pair_day_data::total_supply)),
+                pair_day_data::reserve_usd
+                    .eq(excluded(pair_day_data::reserve_usd)),
+                pair_day_data::daily_volume_token0
+                    .eq(excluded(pair_day_data::daily_volume_token0)),
+                pair_day_data::daily_volume_token1
+                    .eq(excluded(pair_day_data::daily_volume_token1)),
+                pair_day_data::daily_volume_usd
+                    .eq(excluded(pair_day_data::daily_volume_usd)),
+                pair_day_data::daily_txns
+                    .eq(excluded(pair_day_data::daily_txns)),
+            ))
             .execute(&mut connection)
             .unwrap();
     }
@@ -446,6 +731,42 @@ impl Database {
             .unwrap();
     }
 
+    pub async fn update_pairs_hour_data(
+        &self,
+        data: &Vec<DatabasePairHourData>,
+    ) {
+        let mut connection: PgConnection = self.get_connection();
+
+        diesel::insert_into(pair_hour_data::dsl::pair_hour_data)
+            .values(data)
+            .on_conflict(pair_hour_data::id)
+            .do_update()
+            .set((
+                pair_hour_data::id.eq(excluded(pair_hour_data::id)),
+                pair_hour_data::hour_start_unix
+                    .eq(excluded(pair_hour_data::hour_start_unix)),
+                pair_hour_data::pair.eq(excluded(pair_hour_data::pair)),
+                pair_hour_data::reserve0
+                    .eq(excluded(pair_hour_data::reserve0)),
+                pair_hour_data::reserve1
+                    .eq(excluded(pair_hour_data::reserve1)),
+                pair_hour_data::total_supply
+                    .eq(excluded(pair_hour_data::total_supply)),
+                pair_hour_data::reserve_usd
+                    .eq(excluded(pair_hour_data::reserve_usd)),
+                pair_hour_data::hourly_volume_token0
+                    .eq(excluded(pair_hour_data::hourly_volume_token0)),
+                pair_hour_data::hourly_volume_token1
+                    .eq(excluded(pair_hour_data::hourly_volume_token1)),
+                pair_hour_data::hourly_volume_usd
+                    .eq(excluded(pair_hour_data::hourly_volume_usd)),
+                pair_hour_data::hourly_txns
+                    .eq(excluded(pair_hour_data::hourly_txns)),
+            ))
+            .execute(&mut connection)
+            .unwrap();
+    }
+
     pub async fn update_token_day_data(
         &self,
         data: &DatabaseTokenDayData,
@@ -457,6 +778,41 @@ impl Database {
             .on_conflict(token_day_data::id)
             .do_update()
             .set(data)
+            .execute(&mut connection)
+            .unwrap();
+    }
+
+    pub async fn update_tokens_day_data(
+        &self,
+        data: &Vec<DatabaseTokenDayData>,
+    ) {
+        let mut connection: PgConnection = self.get_connection();
+
+        diesel::insert_into(token_day_data::dsl::token_day_data)
+            .values(data)
+            .on_conflict(token_day_data::id)
+            .do_update()
+            .set((
+                token_day_data::id.eq(excluded(token_day_data::id)),
+                token_day_data::date.eq(excluded(token_day_data::date)),
+                token_day_data::token.eq(excluded(token_day_data::token)),
+                token_day_data::daily_volume_token
+                    .eq(excluded(token_day_data::daily_volume_token)),
+                token_day_data::daily_volume_eth
+                    .eq(excluded(token_day_data::daily_volume_eth)),
+                token_day_data::daily_volume_usd
+                    .eq(excluded(token_day_data::daily_volume_usd)),
+                token_day_data::daily_txns
+                    .eq(excluded(token_day_data::daily_txns)),
+                token_day_data::total_liquidity_token
+                    .eq(excluded(token_day_data::total_liquidity_token)),
+                token_day_data::total_liquidity_eth
+                    .eq(excluded(token_day_data::total_liquidity_eth)),
+                token_day_data::total_liquidity_usd
+                    .eq(excluded(token_day_data::total_liquidity_usd)),
+                token_day_data::price_usd
+                    .eq(excluded(token_day_data::price_usd)),
+            ))
             .execute(&mut connection)
             .unwrap();
     }
