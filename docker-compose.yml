@@ -28,12 +28,10 @@ services:
     volumes:
       - ./data/db:/var/lib/postgresql/data
     restart: always
-    ports: 
-      - 5432:5432
     env_file: "./.env"
 
-  indexer:
-    container_name: indexer
+  taya-indexer:
+    container_name: taya-indexer
     build:
       context: .
     depends_on:

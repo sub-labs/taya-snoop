@@ -11,7 +11,7 @@ use crate::{
         burn::Burn, mint::Mint, pairs::PairCreated, swap::Swap,
         sync::Sync, transfer::Transfer,
     },
-    utils::format::{parse_u256, zero_bd},
+    utils::format::parse_u256,
 };
 use alloy::{
     eips::BlockNumberOrTag,
@@ -64,87 +64,100 @@ impl Rpc {
         last_block: u64,
         config: &Config,
     ) -> Option<Vec<Log>> {
-        let filter = Filter::new()
-            .from_block(BlockNumberOrTag::Number(first_block))
-            .to_block(BlockNumberOrTag::Number(last_block))
-            .address(config.chain.factory.parse::<Address>().unwrap())
-            .event(PairCreated::SIGNATURE);
+        let mut all_logs = Vec::new();
 
-        match self.client.get_logs(&filter).await {
-            Ok(logs) => Some(logs),
-            Err(_) => None,
+        let rpc_block_limit = 100;
+
+        let mut current_block = first_block;
+        while current_block <= last_block {
+            let end_block = std::cmp::min(
+                current_block + rpc_block_limit - 1,
+                last_block,
+            );
+
+            let filter = Filter::new()
+                .from_block(BlockNumberOrTag::Number(current_block))
+                .to_block(BlockNumberOrTag::Number(end_block))
+                .address(config.chain.factory.parse::<Address>().unwrap())
+                .event(PairCreated::SIGNATURE);
+
+            let batch_logs = self.client.get_logs(&filter).await.unwrap();
+
+            all_logs.extend(batch_logs);
+
+            current_block = end_block + 1;
         }
+
+        Some(all_logs)
     }
 
     pub async fn get_pairs_logs_batch(
         &self,
         pairs: &[String],
-        first_block: i32,
-        last_block: i32,
+        first_block: u64,
+        last_block: u64,
     ) -> Option<Vec<Log>> {
         let address_pairs: Vec<Address> = pairs
             .iter()
             .map(|pair| Address::from_str(pair).unwrap())
             .collect();
 
-        let filter = Filter::new()
-            .from_block(BlockNumberOrTag::Number(first_block as u64))
-            .to_block(BlockNumberOrTag::Number(last_block as u64))
-            .address(address_pairs)
-            .events(vec![
-                Mint::SIGNATURE,
-                Burn::SIGNATURE,
-                Swap::SIGNATURE,
-                Sync::SIGNATURE,
-                Transfer::SIGNATURE,
-            ]);
+        let mut all_logs = Vec::new();
+        let rpc_block_limit = 100;
 
-        match self.client.get_logs(&filter).await {
-            Ok(logs) => Some(logs),
-            Err(_) => None,
+        let mut current_block = first_block;
+        while current_block <= last_block {
+            let end_block = std::cmp::min(
+                current_block + rpc_block_limit - 1,
+                last_block,
+            );
+
+            let filter = Filter::new()
+                .from_block(BlockNumberOrTag::Number(current_block))
+                .to_block(BlockNumberOrTag::Number(end_block))
+                .address(address_pairs.clone())
+                .events(vec![
+                    Mint::SIGNATURE,
+                    Burn::SIGNATURE,
+                    Swap::SIGNATURE,
+                    Sync::SIGNATURE,
+                    Transfer::SIGNATURE,
+                ]);
+
+            let batch_logs = self.client.get_logs(&filter).await.unwrap();
+
+            all_logs.extend(batch_logs);
+
+            current_block = end_block + 1;
         }
+
+        Some(all_logs)
     }
 
     pub async fn get_token_information(
         &self,
         token: String,
     ) -> (String, String, BigDecimal, i32) {
-        let token =
-            ERC20::new(Address::from_str(&token).unwrap(), &self.client);
+        let token_address = Address::from_str(&token).unwrap();
+        let token = ERC20::new(token_address, &self.client);
 
-        let name = async { token.name().call().await };
-        let symbol = async { token.symbol().call().await };
-        let total_supply = async { token.totalSupply().call().await };
-        let decimals = async { token.decimals().call().await };
+        let multicall = self
+            .client
+            .multicall()
+            .add(token.name())
+            .add(token.symbol())
+            .add(token.totalSupply())
+            .add(token.decimals());
 
-        let (
-            name_result,
-            symbol_result,
-            total_supply_result,
-            decimals_result,
-        ) = tokio::join!(name, symbol, total_supply, decimals);
+        let (name, symbol, total_supply, decimals) =
+            multicall.aggregate().await.unwrap();
 
-        let name = match name_result {
-            Ok(name) => name._0,
-            Err(_) => "UNKNOWN".to_owned(),
-        };
-
-        let symbol = match symbol_result {
-            Ok(symbol) => symbol._0,
-            Err(_) => "UNKNOWN".to_owned(),
-        };
-
-        let total_supply: BigDecimal = match total_supply_result {
-            Ok(total_supply) => parse_u256(total_supply._0),
-            Err(_) => zero_bd(),
-        };
-
-        let decimals: i32 = match decimals_result {
-            Ok(decimals) => decimals._0 as i32,
-            Err(_) => 0,
-        };
-
-        (name, symbol, total_supply, decimals)
+        (
+            name._0,
+            symbol._0,
+            parse_u256(total_supply._0),
+            decimals._0 as i32,
+        )
     }
 
     pub async fn get_pair_for_tokens(

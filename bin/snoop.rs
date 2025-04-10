@@ -1,11 +1,11 @@
-use std::{thread, time};
+use std::{collections::HashMap, thread, time};
 
 use alloy::sol_types::SolEvent;
 use log::{info, LevelFilter};
 use simple_logger::SimpleLogger;
 use taya_snoop::{
     configs::Config,
-    db::Database,
+    db::{Database, StorageCache},
     handlers::{
         burn::{handle_burn, Burn},
         mint::{handle_mint, Mint},
@@ -81,12 +81,28 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
             None => return,
         };
 
-        let (mut factory, mut bundle) =
+        handle_pairs(pair_logs, db, rpc).await;
+
+        let (factory, bundle) =
             tokio::join!(db.get_factory(), db.get_bundle());
 
-        handle_pairs(&mut factory, pair_logs, db, rpc).await;
+        let mut cache = StorageCache {
+            db: db.clone(),
+            factory: factory.clone(),
+            bundle: bundle.clone(),
+            pairs: HashMap::new(),
+            tokens: HashMap::new(),
+            transactions: HashMap::new(),
+            mints: HashMap::new(),
+            swaps: HashMap::new(),
+            burns: HashMap::new(),
+            pairs_day_data: HashMap::new(),
+            pairs_hour_data: HashMap::new(),
+            tokens_day_data: HashMap::new(),
+            dex_day_data: HashMap::new(),
+        };
 
-        if !factory.pairs.is_empty() {
+        if factory.pair_count != 0 {
             let pairs: Vec<String> = factory
                 .pairs
                 .clone()
@@ -95,7 +111,11 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
                 .collect();
 
             let mut event_logs = match rpc
-                .get_pairs_logs_batch(&pairs, first_block, last_block)
+                .get_pairs_logs_batch(
+                    &pairs,
+                    first_block as u64,
+                    last_block as u64,
+                )
                 .await
             {
                 Some(logs) => logs,
@@ -116,61 +136,49 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
 
             for log in event_logs {
                 match log.topic0() {
-                    Some(topic_raw) => {
+                    Some(topic) => {
                         let block_timestamp =
                             log.block_timestamp.unwrap() as i32;
 
-                        let topic = topic_raw.to_string();
-
-                        if topic == Mint::SIGNATURE_HASH.to_string() {
+                        if topic.eq(&Mint::SIGNATURE_HASH) {
                             handle_mint(
                                 log,
                                 block_timestamp,
                                 db,
-                                &mut factory,
-                                &bundle,
+                                &mut cache,
                             )
                             .await;
                             count_mints += 1;
-                        } else if topic == Burn::SIGNATURE_HASH.to_string()
-                        {
+                        } else if topic.eq(&Burn::SIGNATURE_HASH) {
                             handle_burn(
                                 log,
                                 block_timestamp,
                                 db,
-                                &mut factory,
-                                &bundle,
+                                &mut cache,
                             )
                             .await;
                             count_burns += 1;
-                        } else if topic == Swap::SIGNATURE_HASH.to_string()
-                        {
+                        } else if topic.eq(&Swap::SIGNATURE_HASH) {
                             handle_swap(
                                 log,
                                 block_timestamp,
                                 db,
                                 config,
-                                &mut factory,
-                                &bundle,
+                                &mut cache,
                             )
                             .await;
                             count_swaps += 1;
-                        } else if topic == Sync::SIGNATURE_HASH.to_string()
-                        {
-                            handle_sync(
+                        } else if topic.eq(&Sync::SIGNATURE_HASH) {
+                            handle_sync(log, db, config, &mut cache).await;
+                            count_syncs += 1;
+                        } else if topic.eq(&Transfer::SIGNATURE_HASH) {
+                            handle_transfer(
                                 log,
+                                block_timestamp,
                                 db,
-                                config,
-                                &mut factory,
-                                &mut bundle,
+                                &mut cache,
                             )
                             .await;
-                            count_syncs += 1;
-                        } else if topic
-                            == Transfer::SIGNATURE_HASH.to_string()
-                        {
-                            handle_transfer(log, block_timestamp, db)
-                                .await;
                             count_transfers += 1;
                         }
                     }
@@ -178,10 +186,7 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
                 }
             }
 
-            tokio::join!(
-                db.update_bundle(&bundle),
-                db.update_factory(&factory)
-            );
+            cache.store().await;
 
             info!("Procesed {} mints {} burns {} swaps {} sync and {} transfer events", count_mints, count_burns, count_swaps, count_syncs, count_transfers);
         }

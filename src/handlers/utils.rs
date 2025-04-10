@@ -6,11 +6,10 @@ use crate::{
                 DatabaseDexDayData, DatabasePairDayData,
                 DatabasePairHourData, DatabaseTokenDayData,
             },
-            factory::DatabaseFactory,
             pair::DatabasePair,
             token::DatabaseToken,
         },
-        Database,
+        Database, StorageCache,
     },
     utils::format::{one_bd, zero_bd},
 };
@@ -19,14 +18,23 @@ use bigdecimal::BigDecimal;
 pub async fn get_eth_price_usd(
     db: &Database,
     config: &Config,
+    cache: &StorageCache,
 ) -> BigDecimal {
-    let usdc_pair = match config.chain.usdc_weth_pair {
-        Some(pair) => db.get_pair(pair).await,
+    let usdc_pair: Option<DatabasePair> = match config.chain.usdc_weth_pair
+    {
+        Some(pair) => match cache.pairs.get(pair) {
+            Some(pair) => Some(pair.to_owned()),
+            None => db.get_pair(pair).await,
+        },
         None => None,
     };
 
-    let usdt_pair = match config.chain.usdt_weth_pair {
-        Some(pair) => db.get_pair(pair).await,
+    let usdt_pair: Option<DatabasePair> = match config.chain.usdt_weth_pair
+    {
+        Some(pair) => match cache.pairs.get(pair) {
+            Some(pair) => Some(pair.to_owned()),
+            None => db.get_pair(pair).await,
+        },
         None => None,
     };
 
@@ -52,6 +60,7 @@ pub async fn find_eth_per_token(
     token: &DatabaseToken,
     db: &Database,
     config: &Config,
+    cache: &StorageCache,
 ) -> BigDecimal {
     let token_address = token.id.to_lowercase();
 
@@ -71,10 +80,6 @@ pub async fn find_eth_per_token(
             continue;
         }
 
-        let pair_address: String = pair.unwrap().id.to_lowercase();
-
-        let pair = db.get_pair(&pair_address).await;
-
         if pair.is_none() {
             continue;
         }
@@ -90,12 +95,13 @@ pub async fn find_eth_per_token(
                     config.chain.minimum_liquidity_threshold_eth,
                 )
         {
-            let token0 = db.get_token(&pair_token0_address).await;
-            if token0.is_none() {
-                continue;
-            }
-
-            let token0 = token0.unwrap();
+            let token0 = match cache.tokens.get(&pair_token0_address) {
+                Some(token) => token.to_owned(),
+                None => match db.get_token(&pair_token0_address).await {
+                    Some(token) => token,
+                    None => continue,
+                },
+            };
 
             return pair.token0_price * token0.derived_eth;
         }
@@ -106,12 +112,13 @@ pub async fn find_eth_per_token(
                     config.chain.minimum_liquidity_threshold_eth,
                 )
         {
-            let token1 = db.get_token(&pair_token1_address).await;
-            if token1.is_none() {
-                continue;
-            }
-
-            let token1 = token1.unwrap();
+            let token1 = match cache.tokens.get(&pair_token1_address) {
+                Some(token) => token.to_owned(),
+                None => match db.get_token(&pair_token1_address).await {
+                    Some(token) => token,
+                    None => continue,
+                },
+            };
 
             return pair.token1_price * token1.derived_eth;
         }
@@ -249,29 +256,34 @@ pub async fn get_tracked_liquidity_usd(
 }
 
 pub async fn update_dex_day_data(
-    factory: &DatabaseFactory,
     db: &Database,
     timestamp: i32,
+    cache: &mut StorageCache,
 ) -> DatabaseDexDayData {
     let day_id = timestamp / 86400;
     let day_start_timestamp = day_id * 86400;
 
     let mut factory_day_data =
-        match db.get_dex_day_data(&day_id.to_string()).await {
-            Some(factory_day_data) => factory_day_data,
-            None => DatabaseDexDayData::new(
-                day_id.to_string(),
-                day_start_timestamp,
-            ),
+        match cache.dex_day_data.get(&day_id.to_string()) {
+            Some(factory_day_data) => factory_day_data.to_owned(),
+            None => match db.get_dex_day_data(&day_id.to_string()).await {
+                Some(factory_day_data) => factory_day_data,
+                None => DatabaseDexDayData::new(
+                    day_id.to_string(),
+                    day_start_timestamp,
+                ),
+            },
         };
 
     factory_day_data.total_liquidity_usd =
-        factory.total_liquidity_usd.clone();
+        cache.factory.total_liquidity_usd.clone();
     factory_day_data.total_liquidity_eth =
-        factory.total_liquidity_eth.clone();
-    factory_day_data.tx_count = factory.tx_count;
+        cache.factory.total_liquidity_eth.clone();
+    factory_day_data.tx_count = cache.factory.tx_count;
 
-    db.update_dex_day_data(&factory_day_data).await;
+    cache
+        .dex_day_data
+        .insert(factory_day_data.id.clone(), factory_day_data.clone());
 
     factory_day_data
 }
@@ -280,6 +292,7 @@ pub async fn update_pair_day_data(
     pair: &DatabasePair,
     timestamp: i32,
     db: &Database,
+    cache: &mut StorageCache,
 ) -> DatabasePairDayData {
     let pair_address = pair.id.to_lowercase();
 
@@ -290,8 +303,10 @@ pub async fn update_pair_day_data(
     let token0_address = pair.token0.to_lowercase();
     let token1_address = pair.token1.to_lowercase();
 
-    let mut pair_day_data =
-        match db.get_pair_day_data(&day_pair_id.to_string()).await {
+    let mut pair_day_data = match cache.pairs_day_data.get(&day_pair_id) {
+        Some(pair_day_data) => pair_day_data.to_owned(),
+        None => match db.get_pair_day_data(&day_pair_id.to_string()).await
+        {
             Some(pair_day_data) => pair_day_data,
             None => DatabasePairDayData::new(
                 day_pair_id,
@@ -300,7 +315,8 @@ pub async fn update_pair_day_data(
                 token0_address,
                 token1_address,
             ),
-        };
+        },
+    };
 
     pair_day_data.total_supply = pair.total_supply.clone();
     pair_day_data.reserve0 = pair.reserve0.clone();
@@ -308,7 +324,9 @@ pub async fn update_pair_day_data(
     pair_day_data.reserve_usd = pair.reserve_usd.clone();
     pair_day_data.daily_txns += 1;
 
-    db.update_pair_day_data(&pair_day_data).await;
+    cache
+        .pairs_day_data
+        .insert(pair_day_data.id.clone(), pair_day_data.clone());
 
     pair_day_data
 }
@@ -317,6 +335,7 @@ pub async fn update_pair_hour_data(
     pair: &DatabasePair,
     timestamp: i32,
     db: &Database,
+    cache: &mut StorageCache,
 ) -> DatabasePairHourData {
     let pair_address = pair.id.to_lowercase();
 
@@ -325,15 +344,20 @@ pub async fn update_pair_hour_data(
     let hour_pair_id =
         format!("{}-{}", pair_address.to_lowercase(), hour_index);
 
-    let mut pair_hour_data =
-        match db.get_pair_hour_data(&hour_pair_id.to_string()).await {
-            Some(pair_hour_data) => pair_hour_data,
-            None => DatabasePairHourData::new(
-                hour_pair_id,
-                hour_start_unix,
-                pair_address,
-            ),
-        };
+    let mut pair_hour_data = match cache.pairs_hour_data.get(&hour_pair_id)
+    {
+        Some(pair_hour_data) => pair_hour_data.to_owned(),
+        None => {
+            match db.get_pair_hour_data(&hour_pair_id.to_string()).await {
+                Some(pair_hour_data) => pair_hour_data,
+                None => DatabasePairHourData::new(
+                    hour_pair_id,
+                    hour_start_unix,
+                    pair_address,
+                ),
+            }
+        }
+    };
 
     pair_hour_data.total_supply = pair.total_supply.clone();
     pair_hour_data.reserve0 = pair.reserve0.clone();
@@ -341,7 +365,9 @@ pub async fn update_pair_hour_data(
     pair_hour_data.reserve_usd = pair.reserve_usd.clone();
     pair_hour_data.hourly_txns += 1;
 
-    db.update_pair_hour_data(&pair_hour_data).await;
+    cache
+        .pairs_hour_data
+        .insert(pair_hour_data.id.clone(), pair_hour_data.clone());
 
     pair_hour_data
 }
@@ -350,6 +376,7 @@ pub async fn update_token_day_data(
     token: &DatabaseToken,
     timestamp: i32,
     db: &Database,
+    cache: &mut StorageCache,
 ) -> DatabaseTokenDayData {
     let bundle = db.get_bundle().await;
     let day_id = timestamp / 86400;
@@ -359,16 +386,21 @@ pub async fn update_token_day_data(
 
     let token_day_id = format!("{}-{}", token_address, day_id);
 
-    let mut token_day_data =
-        match db.get_token_day_data(&token_day_id.to_string()).await {
-            Some(token_day_data) => token_day_data,
-            None => DatabaseTokenDayData::new(
-                token_day_id,
-                day_start_timestamp,
-                token_address.clone(),
-                token.derived_eth.clone() * bundle.eth_price.clone(),
-            ),
-        };
+    let mut token_day_data = match cache.tokens_day_data.get(&token_day_id)
+    {
+        Some(token_day_data) => token_day_data.to_owned(),
+        None => {
+            match db.get_token_day_data(&token_day_id.to_string()).await {
+                Some(token_day_data) => token_day_data,
+                None => DatabaseTokenDayData::new(
+                    token_day_id,
+                    day_start_timestamp,
+                    token_address.clone(),
+                    token.derived_eth.clone() * bundle.eth_price.clone(),
+                ),
+            }
+        }
+    };
 
     token_day_data.price_usd =
         token.derived_eth.clone() * bundle.eth_price.clone();
@@ -380,7 +412,9 @@ pub async fn update_token_day_data(
             * bundle.eth_price.clone();
     token_day_data.daily_txns += 1;
 
-    db.update_token_day_data(&token_day_data).await;
+    cache
+        .tokens_day_data
+        .insert(token_day_data.id.clone(), token_day_data.clone());
 
     token_day_data
 }
