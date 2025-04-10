@@ -102,7 +102,7 @@ async fn sync_chain(rpc: &Rpc, db: &Database, config: &Config) {
             dex_day_data: HashMap::new(),
         };
 
-        if !factory.pair_count != 0 {
+        if factory.pair_count != 0 {
             let pairs: Vec<String> = factory
                 .pairs
                 .clone()
