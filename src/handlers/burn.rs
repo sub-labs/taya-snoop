@@ -96,8 +96,9 @@ pub async fn handle_burn(
     burn.amount_usd = amount_total_usd;
 
     cache.burns.insert(burn.id.clone(), burn);
-    cache.tokens.insert(token0.id.clone(), token0.clone());
-    cache.tokens.insert(token1.id.clone(), token1.clone());
+
+    cache.tokens.insert(token0_address, token0.clone());
+    cache.tokens.insert(token1_address, token1.clone());
 
     update_pair_day_data(&pair, timestamp, db, cache).await;
     update_pair_hour_data(&pair, timestamp, db, cache).await;

@@ -11,7 +11,7 @@ use crate::{
         burn::Burn, mint::Mint, pairs::PairCreated, swap::Swap,
         sync::Sync, transfer::Transfer,
     },
-    utils::format::{parse_u256, zero_bd},
+    utils::format::parse_u256,
 };
 use alloy::{
     eips::BlockNumberOrTag,
@@ -109,42 +109,26 @@ impl Rpc {
         &self,
         token: String,
     ) -> (String, String, BigDecimal, i32) {
-        let token =
-            ERC20::new(Address::from_str(&token).unwrap(), &self.client);
+        let token_address = Address::from_str(&token).unwrap();
+        let token = ERC20::new(token_address, &self.client);
 
-        let name = async { token.name().call().await };
-        let symbol = async { token.symbol().call().await };
-        let total_supply = async { token.totalSupply().call().await };
-        let decimals = async { token.decimals().call().await };
+        let multicall = self
+            .client
+            .multicall()
+            .add(token.name())
+            .add(token.symbol())
+            .add(token.totalSupply())
+            .add(token.decimals());
 
-        let (
-            name_result,
-            symbol_result,
-            total_supply_result,
-            decimals_result,
-        ) = tokio::join!(name, symbol, total_supply, decimals);
+        let (name, symbol, total_supply, decimals) =
+            multicall.aggregate().await.unwrap();
 
-        let name = match name_result {
-            Ok(name) => name._0,
-            Err(_) => "UNKNOWN".to_owned(),
-        };
-
-        let symbol = match symbol_result {
-            Ok(symbol) => symbol._0,
-            Err(_) => "UNKNOWN".to_owned(),
-        };
-
-        let total_supply: BigDecimal = match total_supply_result {
-            Ok(total_supply) => parse_u256(total_supply._0),
-            Err(_) => zero_bd(),
-        };
-
-        let decimals: i32 = match decimals_result {
-            Ok(decimals) => decimals._0 as i32,
-            Err(_) => 0,
-        };
-
-        (name, symbol, total_supply, decimals)
+        (
+            name._0,
+            symbol._0,
+            parse_u256(total_supply._0),
+            decimals._0 as i32,
+        )
     }
 
     pub async fn get_pair_for_tokens(

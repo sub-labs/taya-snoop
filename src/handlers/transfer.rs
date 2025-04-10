@@ -217,6 +217,6 @@ pub async fn handle_transfer(
             .insert(transaction.id.clone(), transaction.clone());
     }
 
-    cache.pairs.insert(pair.id.clone(), pair.clone());
+    cache.pairs.insert(pair_address, pair.clone());
     cache.transactions.insert(transaction.id.clone(), transaction.clone());
 }

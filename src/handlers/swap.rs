@@ -80,18 +80,22 @@ pub async fn handle_swap(
         &parse_u256(event.amount0In),
         token0.decimals,
     );
+
     let amount1_in = convert_token_to_decimal(
         &parse_u256(event.amount1In),
         token1.decimals,
     );
+
     let amount0_out = convert_token_to_decimal(
         &parse_u256(event.amount0Out),
         token0.decimals,
     );
+
     let amount1_out = convert_token_to_decimal(
         &parse_u256(event.amount1Out),
         token1.decimals,
     );
+
     let amount0_total = amount0_out.clone() + amount0_in.clone();
     let amount1_total = amount1_out.clone() + amount1_in.clone();
 
@@ -163,7 +167,7 @@ pub async fn handle_swap(
         swap_id,
         log.transaction_hash.unwrap().to_string(),
         block_timestamp,
-        pair_address,
+        pair_address.clone(),
         sender_address.clone(),
         sender_address,
         amount0_in,
@@ -177,16 +181,18 @@ pub async fn handle_swap(
 
     transaction.swaps.push(Some(swap.id.clone()));
 
-    cache.tokens.insert(token0.id.clone(), token0.clone());
-    cache.tokens.insert(token1.id.clone(), token1.clone());
-    cache.pairs.insert(pair.id.clone(), pair.clone());
+    cache.pairs.insert(pair_address, pair.clone());
+    cache.tokens.insert(token0_address, token0.clone());
+    cache.tokens.insert(token1_address, token1.clone());
     cache.swaps.insert(swap.id.clone(), swap);
     cache.transactions.insert(transaction.id.clone(), transaction);
 
     let mut pair_day_data =
         update_pair_day_data(&pair, block_timestamp, db, cache).await;
+
     let mut pair_hour_data =
         update_pair_hour_data(&pair, block_timestamp, db, cache).await;
+
     let mut dex_day_data =
         update_dex_day_data(db, block_timestamp, cache).await;
 
